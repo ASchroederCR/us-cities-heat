@@ -5,6 +5,14 @@ Parameterized version of kano-heat-metrics/process_data.py: loops over every
 city in cities_config.py that has a cached heat-metrics file, and writes each
 city's raw metric values (no HES/SVS/HVI, no tiers) to its own data/<city>/ dir.
 
+Heat variables also get a "climatology-relative" companion fraction
+(<key>_climrel) — each tract's value expressed as a fraction of the distance
+between ITS OWN historical reference mean and p99 (from the WMO reference
+climatology), not the observed min/max across tracts in this run. The map
+color scale for those variables uses the fixed, climatology-anchored
+companion field; the raw value (°F/%/°C) is unchanged and still what's
+displayed in tooltips/table/popups.
+
 Usage:
     py process_data.py            # process every city with a cache file present
     py process_data.py fresno     # process just one city (by key in cities_config.py)
@@ -30,16 +38,33 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 
 ROLLING_DAYS = 30
 
+# Fixed climatology-anchored scale for LST anomaly coloring (°C): 0 = at
+# normal (green), +8°C = extreme (red). Unlike the ERA5-derived heat
+# variables, LST anomaly has no per-tract WMO percentile to key off, so this
+# uses a single fixed absolute band instead of a per-tract ratio.
+LST_ANOMALY_RED_AT_C = 8.0
+
+# Fixed scale for extreme-day % coloring: a stationary climate would put ~5%
+# of days above the historical p95 threshold by construction, so 0% = green
+# and 40%+ = red treats "several times the expected base rate" as extreme.
+EXTREME_PCT_RED_AT = 40.0
+
 VARIABLE_KEYS = [
     "daytime_peak_f", "heat_anomaly_f", "extreme_pct", "nighttime_stress_f",
-    "rwi_mean", "health_per_10k", "built_frac", "tree_frac", "viirs_mean",
-    "gdl_hdi", "population",
+    "rwi_mean", "health_per_10k", "built_frac", "tree_frac", "canopy_frac_over_3m",
+    "viirs_mean", "gdl_hdi", "population",
+    "frac_under5", "frac_elderly_65plus", "frac_elderly_75plus", "old_age_dependency_ratio",
+    "lst_anomaly_c", "ref_daytime_hi_mean", "ref_daytime_hi_p95",
 ]
 
 
 def safe_mean(vals):
     vals = [v for v in vals if v is not None]
     return statistics.mean(vals) if vals else None
+
+
+def clip(v, lo, hi):
+    return max(lo, min(hi, v))
 
 
 def process_city(city_key, cfg):
@@ -126,6 +151,15 @@ def process_city(city_key, cfg):
         peaks = [r["daytime_hi_max"] for r in window if r["daytime_hi_max"] is not None]
         pops  = [r["population"]     for r in rows   if r["population"]     is not None]
 
+        # WMO reference climatology, averaged over the same rolling window —
+        # the benchmark this tract's heat values get compared against below,
+        # and also exposed as their own selectable "Climatology" layers.
+        ref_day_mean   = safe_mean([r["ref_daytime_hi_mean"]   for r in window if r["ref_daytime_hi_mean"]   is not None])
+        ref_day_p95    = safe_mean([r["ref_daytime_hi_p95"]    for r in window if r["ref_daytime_hi_p95"]    is not None])
+        ref_day_p99    = safe_mean([r["ref_daytime_hi_p99"]    for r in window if r["ref_daytime_hi_p99"]    is not None])
+        ref_night_med  = safe_mean([r["ref_nighttime_hi_median"] for r in window if r["ref_nighttime_hi_median"] is not None])
+        ref_night_p99  = safe_mean([r["ref_nighttime_hi_p99"]  for r in window if r["ref_nighttime_hi_p99"]  is not None])
+
         poly_heat[name] = {
             "heat_anomaly":     anomaly,
             "extreme_frac":     extreme_frac,
@@ -133,6 +167,11 @@ def process_city(city_key, cfg):
             "daytime_peak":     safe_mean(peaks),
             "days_covered":     len(window),
             "population":       pops[0] if pops else None,
+            "ref_day_mean":     ref_day_mean,
+            "ref_day_p95":      ref_day_p95,
+            "ref_day_p99":      ref_day_p99,
+            "ref_night_med":    ref_night_med,
+            "ref_night_p99":    ref_night_p99,
         }
 
     # ── raw vulnerability (no inversion/weighting) ──────────────────────────
@@ -141,21 +180,62 @@ def process_city(city_key, cfg):
     scores = {}
     for name, ph in poly_heat.items():
         v = vuln_by_name.get(name, {})
+
+        daytime_peak_f     = round(ph["daytime_peak"],     1) if ph["daytime_peak"]     is not None else None
+        heat_anomaly_f      = round(ph["heat_anomaly"],     1) if ph["heat_anomaly"]     is not None else None
+        extreme_pct         = round(ph["extreme_frac"]*100, 0) if ph["extreme_frac"]     is not None else None
+        nighttime_stress_f  = round(ph["nighttime_stress"], 1) if ph["nighttime_stress"] is not None else None
+        lst_anomaly_c       = round(v["lst_warm_season_anomaly_c"], 2) if v.get("lst_warm_season_anomaly_c") is not None else None
+
+        # ── climatology-relative fractions (fixed, WMO-benchmark-anchored
+        # scale, NOT this-run's observed min/max) — used for map color only.
+        day_spread = (ph["ref_day_p99"] - ph["ref_day_mean"]) if (ph["ref_day_p99"] is not None and ph["ref_day_mean"] is not None) else None
+        night_spread = (ph["ref_night_p99"] - ph["ref_night_med"]) if (ph["ref_night_p99"] is not None and ph["ref_night_med"] is not None) else None
+
+        daytime_peak_climrel = (
+            clip((ph["daytime_peak"] - ph["ref_day_mean"]) / day_spread, -0.3, 1.3)
+            if daytime_peak_f is not None and day_spread and day_spread > 0 else None
+        )
+        heat_anomaly_climrel = (
+            clip(ph["heat_anomaly"] / day_spread, -0.3, 1.3)
+            if heat_anomaly_f is not None and day_spread and day_spread > 0 else None
+        )
+        nighttime_stress_climrel = (
+            clip(ph["nighttime_stress"] / night_spread, -0.3, 1.3)
+            if nighttime_stress_f is not None and night_spread and night_spread > 0 else None
+        )
+        extreme_pct_climrel = clip(extreme_pct / EXTREME_PCT_RED_AT, 0, 1) if extreme_pct is not None else None
+        lst_anomaly_climrel = clip(lst_anomaly_c / LST_ANOMALY_RED_AT_C, 0, 1) if lst_anomaly_c is not None else None
+
         scores[name] = {
             "population":     ph["population"],
             "days_covered":   ph["days_covered"],
-            "daytime_peak_f":     round(ph["daytime_peak"],     1) if ph["daytime_peak"]     is not None else None,
-            "heat_anomaly_f":     round(ph["heat_anomaly"],     1) if ph["heat_anomaly"]     is not None else None,
-            "extreme_pct":        round(ph["extreme_frac"]*100, 0) if ph["extreme_frac"]     is not None else None,
-            "nighttime_stress_f": round(ph["nighttime_stress"], 1) if ph["nighttime_stress"] is not None else None,
+            "daytime_peak_f":     daytime_peak_f,
+            "heat_anomaly_f":     heat_anomaly_f,
+            "extreme_pct":        extreme_pct,
+            "nighttime_stress_f": nighttime_stress_f,
+            "daytime_peak_f_climrel":     round(daytime_peak_climrel, 4)     if daytime_peak_climrel     is not None else None,
+            "heat_anomaly_f_climrel":     round(heat_anomaly_climrel, 4)     if heat_anomaly_climrel     is not None else None,
+            "nighttime_stress_f_climrel": round(nighttime_stress_climrel, 4) if nighttime_stress_climrel is not None else None,
+            "extreme_pct_climrel":        round(extreme_pct_climrel, 4)      if extreme_pct_climrel      is not None else None,
+            "ref_daytime_hi_mean": round(ph["ref_day_mean"], 1) if ph["ref_day_mean"] is not None else None,
+            "ref_daytime_hi_p95":  round(ph["ref_day_p95"],  1) if ph["ref_day_p95"]  is not None else None,
             "rwi_mean":       v.get("rwi_mean"),
             "health_per_10k": v.get("health_facility_per_10k"),
             "built_frac":     round(v["wc_built_frac"], 3) if v.get("wc_built_frac") is not None else None,
             "tree_frac":      round(v["wc_tree_frac"],  3) if v.get("wc_tree_frac")  is not None else None,
+            "canopy_frac_over_3m": round(v["canopy_frac_over_3m"], 3) if v.get("canopy_frac_over_3m") is not None else None,
             "viirs_mean":     round(v["viirs_mean"], 1)    if v.get("viirs_mean")    is not None else None,
             "gdl_hdi":        v.get("gdl_hdi"),
             "gdl_region":     v.get("gdl_region_name"),
             "ghsl_smod":      v.get("ghsl_smod_dominant"),
+            "lst_anomaly_c":  lst_anomaly_c,
+            "lst_anomaly_c_climrel": round(lst_anomaly_climrel, 4) if lst_anomaly_climrel is not None else None,
+            "worldpop_pop_total":     round(v["worldpop_pop_total"], 0) if v.get("worldpop_pop_total") is not None else None,
+            "frac_under5":            round(v["frac_under5"]*100, 1)         if v.get("frac_under5")         is not None else None,
+            "frac_elderly_65plus":    round(v["frac_elderly_65plus"]*100, 1) if v.get("frac_elderly_65plus") is not None else None,
+            "frac_elderly_75plus":    round(v["frac_elderly_75plus"]*100, 1) if v.get("frac_elderly_75plus") is not None else None,
+            "old_age_dependency_ratio": round(v["old_age_dependency_ratio"], 3) if v.get("old_age_dependency_ratio") is not None else None,
         }
 
     # ── inject into GeoJSON ──────────────────────────────────────────────────
@@ -175,7 +255,8 @@ def process_city(city_key, cfg):
     with open(os.path.join(data_dir, "metrics.geojson"), "w") as f:
         json.dump(geojson, f, separators=(",", ":"))
 
-    # ── per-variable stats ────────────────────────────────────────────────────
+    # ── per-variable stats (raw values only — climrel fields use a fixed
+    # scale, not data-driven, so they're excluded from this table) ─────────
     variable_stats = {}
     for key in VARIABLE_KEYS:
         vals = [s[key] for s in scores.values() if s.get(key) is not None]
