@@ -1,0 +1,8 @@
+us-heat-metrics/data/
+us-heat-metrics/update.log
+us-heat-metrics/credentials.json
+us-heat-metrics/deploy_state.json
+us-heat-metrics/DEPLOY_STATUS.md
+us-heat-metrics/DEPLOY_BLOCKED.md
+__pycache__/
+*.pyc
