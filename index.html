@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>US Cities Heat &amp; Social Metrics</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── header ─────────────────────────────────────────────── */
+    #header {
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    #header h1 { font-size: 1rem; font-weight: 700; color: #fff; letter-spacing: .02em; }
+    #header .subtitle { font-size: .75rem; color: #94a3b8; }
+
+    .stat-pill {
+      background: #252836;
+      border: 1px solid #2d3148;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: .72rem;
+      color: #94a3b8;
+      white-space: nowrap;
+    }
+    .stat-pill strong { color: #e2e8f0; }
+
+    #last-updated { font-size: .72rem; color: #94a3b8; margin-left: auto; white-space: nowrap; }
+
+    /* ── tabs ───────────────────────────────────────────────── */
+    #tabs {
+      background: #14161f;
+      border-bottom: 1px solid #2d3148;
+      display: flex;
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: #94a3b8;
+      padding: 10px 18px;
+      font-size: .8rem;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tab-btn:hover { color: #e2e8f0; background: #1a1d27; }
+    .tab-btn.active { color: #fff; border-bottom-color: #818cf8; }
+    .tab-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #4b5563; flex-shrink: 0;
+    }
+    .tab-dot.ready { background: #4ade80; }
+
+    /* ── body layout ────────────────────────────────────────── */
+    #body { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── left sidebar ───────────────────────────────────────── */
+    #sidebar {
+      width: 250px;
+      flex-shrink: 0;
+      background: #1a1d27;
+      border-right: 1px solid #2d3148;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #sidebar-header {
+      padding: 12px 14px 8px;
+      font-size: .75rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      border-bottom: 1px solid #2d3148;
+    }
+    #layer-controls { padding: 10px 14px; border-bottom: 1px solid #2d3148; }
+    #layer-controls select {
+      width: 100%;
+      background: #252836;
+      border: 1px solid #2d3148;
+      color: #e2e8f0;
+      border-radius: 6px;
+      padding: 7px 8px;
+      font-size: .82rem;
+    }
+    #variable-desc { font-size: .7rem; color: #64748b; margin-top: 8px; line-height: 1.4; }
+
+    #legend { padding: 10px 14px; border-bottom: 1px solid #2d3148; }
+    #legend h4 { font-size: .7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+    #legend-gradient { height: 12px; border-radius: 3px; margin-bottom: 4px; }
+    #legend-labels { display: flex; justify-content: space-between; font-size: .7rem; color: #94a3b8; }
+    #legend-nodata { display: flex; align-items: center; gap: 8px; font-size: .75rem; color: #cbd5e1; margin-top: 8px; }
+    .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+
+    #summary-panel { padding: 10px 14px; border-bottom: 1px solid #2d3148; }
+    #summary-panel h4 { font-size: .7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+    .summary-row { display: flex; justify-content: space-between; font-size: .78rem; color: #cbd5e1; padding: 2px 0; }
+    .summary-row span:last-child { color: #e2e8f0; font-weight: 600; }
+
+    #ranked-panel { padding: 10px 14px; flex: 1; overflow-y: auto; }
+    #ranked-panel h4 { font-size: .7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+    .ranked-item {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: .78rem; padding: 6px 8px; border-radius: 4px; cursor: pointer;
+      color: #cbd5e1; margin-bottom: 2px;
+    }
+    .ranked-item:hover { background: #252836; }
+    .ranked-item .ranked-val { color: #a5b4fc; font-weight: 600; }
+    .ranked-item .ranked-rank { color: #64748b; width: 20px; flex-shrink: 0; }
+    .ranked-item .ranked-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 8px; }
+
+    /* ── map ────────────────────────────────────────────────── */
+    #map-wrap { flex: 1; position: relative; overflow: hidden; }
+    #map { width: 100%; height: 100%; background: #1a1d27; }
+
+    #pending-overlay {
+      position: absolute; inset: 0; z-index: 800;
+      background: #0f1117;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      text-align: center;
+      padding: 20px;
+    }
+    #pending-overlay.show { display: flex; }
+    #pending-overlay .spinner {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 3px solid #2d3148; border-top-color: #818cf8;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #pending-overlay .msg { font-size: .85rem; color: #94a3b8; max-width: 360px; }
+    #pending-overlay .msg strong { color: #e2e8f0; }
+
+    /* ── detail panel ───────────────────────────────────────── */
+    #detail {
+      position: absolute; top: 0; right: 0; width: 320px; height: 100%;
+      background: #1a1d27; border-left: 1px solid #2d3148;
+      display: flex; flex-direction: column; overflow: hidden;
+      transform: translateX(100%); transition: transform .25s ease; z-index: 500;
+    }
+    #detail.open { transform: translateX(0); }
+
+    #detail-header {
+      padding: 14px 16px 10px; border-bottom: 1px solid #2d3148;
+      display: flex; justify-content: space-between; align-items: flex-start;
+    }
+    #detail-name { font-size: .95rem; font-weight: 700; color: #fff; line-height: 1.3; flex: 1; }
+    #detail-district { font-size: .72rem; color: #94a3b8; margin-top: 2px; }
+    #close-detail { background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 1.1rem; padding: 2px 4px; line-height: 1; }
+    #close-detail:hover { color: #fff; }
+
+    #detail-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+
+    .detail-section { margin-bottom: 18px; }
+    .detail-section h4 {
+      font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: #64748b;
+      margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #2d3148;
+    }
+
+    .kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+    .kv-label { font-size: .68rem; color: #64748b; }
+    .kv-value { font-size: .82rem; color: #e2e8f0; font-weight: 500; }
+
+    .chart-wrap { position: relative; height: 130px; }
+
+    /* ── table panel ────────────────────────────────────────── */
+    #table-toggle {
+      position: absolute; bottom: 18px; left: 12px; z-index: 1000;
+      background: #252836; border: 1px solid #2d3148; border-radius: 6px;
+      padding: 7px 14px; font-size: .78rem; color: #cbd5e1; cursor: pointer;
+    }
+    #table-toggle:hover { background: #2d3148; color: #fff; }
+
+    #table-panel {
+      display: none; position: absolute; bottom: 0; left: 0; right: 0; z-index: 999;
+      background: #1a1d27; border-top: 1px solid #2d3148; max-height: 280px;
+      overflow: hidden; flex-direction: column;
+    }
+    #table-panel.open { display: flex; }
+    #table-panel-header { padding: 10px 14px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #2d3148; flex-shrink: 0; }
+    #table-panel-header h4 { font-size: .8rem; color: #e2e8f0; font-weight: 600; flex: 1; }
+    #export-btn { background: #252836; border: 1px solid #2d3148; color: #94a3b8; border-radius: 5px; padding: 4px 10px; font-size: .75rem; cursor: pointer; }
+    #export-btn:hover { color: #fff; background: #2d3148; }
+    #table-scroll { overflow-y: auto; flex: 1; }
+    table { width: 100%; border-collapse: collapse; font-size: .74rem; }
+    thead th {
+      position: sticky; top: 0; background: #1a1d27; padding: 7px 9px; text-align: left;
+      color: #64748b; font-size: .66rem; text-transform: uppercase; letter-spacing: .05em;
+      border-bottom: 1px solid #2d3148; cursor: pointer; white-space: nowrap; user-select: none;
+    }
+    thead th:hover { color: #e2e8f0; }
+    thead th .sort-arrow { margin-left: 3px; opacity: .5; }
+    tbody tr { cursor: pointer; border-bottom: 1px solid #1e2130; }
+    tbody tr:hover { background: #252836; }
+    tbody td { padding: 6px 9px; color: #cbd5e1; white-space: nowrap; }
+  </style>
+</head>
+<body>
+
+<!-- ── header ──────────────────────────────────────────────────────────── -->
+<div id="header">
+  <div>
+    <h1 id="header-title">US Cities Heat &amp; Social Metrics</h1>
+    <div class="subtitle" id="header-subtitle">Loading…</div>
+  </div>
+  <div class="stat-pill" id="stat-polygons"></div>
+  <div class="stat-pill" id="stat-temp"></div>
+  <div class="stat-pill" id="stat-pop"></div>
+  <div id="last-updated"></div>
+</div>
+
+<!-- ── tabs ────────────────────────────────────────────────────────────── -->
+<div id="tabs"></div>
+
+<!-- ── body ────────────────────────────────────────────────────────────── -->
+<div id="body">
+
+  <div id="sidebar">
+    <div id="sidebar-header">Map Variable</div>
+    <div id="layer-controls">
+      <select id="variable-select"></select>
+      <div id="variable-desc"></div>
+    </div>
+
+    <div id="legend">
+      <h4>Legend</h4>
+      <div id="legend-gradient"></div>
+      <div id="legend-labels"><span id="legend-min">–</span><span id="legend-max">–</span></div>
+      <div id="legend-nodata"><div class="legend-swatch" style="background:#374151"></div>No data</div>
+    </div>
+
+    <div id="summary-panel"></div>
+
+    <div id="ranked-panel">
+      <h4 id="ranked-title">Highest Values</h4>
+      <div id="ranked-list"></div>
+    </div>
+  </div>
+
+  <div id="map-wrap">
+
+    <div id="map"></div>
+
+    <div id="pending-overlay">
+      <div class="spinner"></div>
+      <div class="msg"><strong id="pending-city">This city</strong> isn't loaded yet.<br/>The heat-risk API project is still initializing or its data pipeline hasn't been run.</div>
+    </div>
+
+    <div id="detail">
+      <div id="detail-header">
+        <div>
+          <div id="detail-name">–</div>
+          <div id="detail-district">–</div>
+        </div>
+        <button id="close-detail" onclick="closeDetail()">&#x2715;</button>
+      </div>
+      <div id="detail-body">
+        <div class="detail-section">
+          <h4>Heat Metrics</h4>
+          <div class="kv-grid" id="heat-kv"></div>
+        </div>
+        <div class="detail-section">
+          <h4>Daytime Heat Index vs. Historical p95</h4>
+          <div class="chart-wrap"><canvas id="ts-chart"></canvas></div>
+        </div>
+        <div class="detail-section">
+          <h4>Social &amp; Environmental Metrics</h4>
+          <div class="kv-grid" id="vuln-kv"></div>
+        </div>
+      </div>
+    </div>
+
+    <button id="table-toggle" onclick="toggleTable()">Metrics Table</button>
+
+    <div id="table-panel">
+      <div id="table-panel-header">
+        <h4 id="table-title">All Tracts — Raw Metrics</h4>
+        <button id="export-btn" onclick="exportCSV()">Export CSV</button>
+      </div>
+      <div id="table-scroll">
+        <table id="risk-table">
+          <thead><tr id="table-head-row"></tr></thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── city registry (mirrors cities_config.py) ───────────────────────────────────
+const CITIES = [
+  { key:"phoenix",    label:"Phoenix, AZ" },
+  { key:"fresno",     label:"Fresno, CA" },
+  { key:"miami",      label:"Miami, FL" },
+  { key:"chicago",    label:"Chicago, IL" },
+  { key:"boston",     label:"Boston / Cambridge, MA" },
+  { key:"twincities", label:"Minneapolis / St Paul, MN" },
+  { key:"nyc",        label:"New York, NY" },
+];
+
+// ── variable definitions ────────────────────────────────────────────────────
+// (no rwi_mean — Meta RWI has no US coverage, would be null on every tab)
+const VARIABLES = [
+  { key:"daytime_peak_f",     label:"Daytime HI Peak",       unit:"°F", decimals:1, direction:"bad-high", group:"Heat",
+    desc:"Mean of the daily peak daytime heat index over the rolling window." },
+  { key:"heat_anomaly_f",     label:"Heat Anomaly",          unit:"°F", decimals:1, direction:"bad-high", group:"Heat",
+    desc:"How far daytime peak heat index runs above this tract's 10-year historical average for the same days." },
+  { key:"extreme_pct",        label:"Extreme Heat Days",     unit:"%",  decimals:0, direction:"bad-high", group:"Heat",
+    desc:"Share of days in the window where peak heat index exceeded the historical 95th percentile." },
+  { key:"nighttime_stress_f", label:"Nighttime Stress",      unit:"°F", decimals:1, direction:"bad-high", group:"Heat",
+    desc:"How far nighttime heat index runs above the historical median — limited overnight cooling." },
+  { key:"health_per_10k",     label:"Health Facilities/10k", unit:"",   decimals:2, direction:"bad-low",  group:"Social",
+    desc:"Health facilities per 10,000 residents (Healthsites.io)." },
+  { key:"built_frac",         label:"Built Fraction",        unit:"%",  decimals:0, direction:"bad-high", group:"Social", scale100:true,
+    desc:"Share of land covered by impervious/built surface (ESA WorldCover)." },
+  { key:"tree_frac",          label:"Tree Canopy",           unit:"%",  decimals:1, direction:"bad-low",  group:"Social", scale100:true,
+    desc:"Share of land under tree cover (ESA WorldCover)." },
+  { key:"viirs_mean",         label:"Night Lights (VIIRS)",  unit:"",   decimals:1, direction:"neutral",  group:"Social",
+    desc:"Mean night-time light radiance — proxy for electrification/economic activity." },
+  { key:"gdl_hdi",            label:"HDI",                   unit:"",   decimals:3, direction:"bad-low",  group:"Social",
+    desc:"Subnational Human Development Index (Global Data Lab)." },
+  { key:"population",         label:"Population",            unit:"",   decimals:0, direction:"neutral",  group:"Social",
+    desc:"LandScan population estimate." },
+];
+const VAR_BY_KEY = Object.fromEntries(VARIABLES.map(v => [v.key, v]));
+const NO_DATA_COLOR = "#374151";
+
+const SMOD_LABELS = {
+  30: "Urban Core", 23: "Dense Urban", 22: "Semi-Dense Urban",
+  21: "Suburban", 13: "Rural Cluster", 12: "Low Density Rural",
+  11: "Very Low Density", 10: "Water",
+};
+
+// ── per-city cache + active state ───────────────────────────────────────────
+const cityCache = {};       // key -> { GEO, TIMESERIES, META } once loaded
+const cityStatus = {};      // key -> "unloaded" | "loading" | "ready" | "pending"
+let activeCity   = null;
+let map, geojsonLayer, tsChart = null;
+let currentVar     = "daytime_peak_f";
+let sortKey         = "daytime_peak_f";
+let sortDir          = -1;
+let selectedName       = null;
+let hoveredLayer         = null;
+
+// ── boot ───────────────────────────────────────────────────────────────────────
+async function boot() {
+  buildTabs();
+  buildVariableSelect();
+  initMap();
+  await switchCity(CITIES.find(c => c.key === "fresno") ? "fresno" : CITIES[0].key);
+}
+
+function buildTabs() {
+  const tabs = document.getElementById("tabs");
+  tabs.innerHTML = CITIES.map(c => `
+    <button class="tab-btn" id="tab-${c.key}" onclick="switchCity('${c.key}')">
+      <span class="tab-dot" id="dot-${c.key}"></span>${c.label}
+    </button>
+  `).join("");
+}
+
+// ── city switching ────────────────────────────────────────────────────────────
+async function switchCity(key) {
+  activeCity = key;
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById(`tab-${key}`).classList.add("active");
+  closeDetail();
+  document.getElementById("table-panel").classList.remove("open");
+
+  if (!cityCache[key]) {
+    await loadCity(key);
+  }
+  renderCity();
+}
+
+async function loadCity(key) {
+  cityStatus[key] = "loading";
+  try {
+    const [GEO, TIMESERIES, META] = await Promise.all([
+      fetchJson(`data/${key}/metrics.geojson`),
+      fetchJson(`data/${key}/heat_timeseries.json`),
+      fetchJson(`data/${key}/last_run.json`),
+    ]);
+    cityCache[key] = { GEO, TIMESERIES, META };
+    cityStatus[key] = "ready";
+  } catch (e) {
+    cityStatus[key] = "pending";
+  }
+  document.getElementById(`dot-${key}`).classList.toggle("ready", cityStatus[key] === "ready");
+}
+
+async function fetchJson(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url}: ${r.status}`);
+  return r.json();
+}
+
+function renderCity() {
+  const status = cityStatus[activeCity];
+  const cityMeta = CITIES.find(c => c.key === activeCity);
+
+  if (status !== "ready") {
+    document.getElementById("pending-overlay").classList.add("show");
+    document.getElementById("pending-city").textContent = cityMeta.label;
+    document.getElementById("header-title").textContent = `US Cities Heat & Social Metrics — ${cityMeta.label}`;
+    document.getElementById("header-subtitle").textContent = "Data not yet available";
+    document.getElementById("stat-polygons").textContent = "";
+    document.getElementById("stat-temp").textContent = "";
+    document.getElementById("stat-pop").textContent = "";
+    document.getElementById("last-updated").textContent = "";
+    if (geojsonLayer) { map.removeLayer(geojsonLayer); geojsonLayer = null; }
+    document.getElementById("legend-min").textContent = "–";
+    document.getElementById("legend-max").textContent = "–";
+    document.getElementById("legend-gradient").style.background = "none";
+    document.getElementById("summary-panel").innerHTML = "";
+    document.getElementById("ranked-list").innerHTML = "";
+    document.getElementById("table-body").innerHTML = "";
+    return;
+  }
+
+  document.getElementById("pending-overlay").classList.remove("show");
+  const { META } = cityCache[activeCity];
+
+  populateHeader(cityMeta, META);
+  renderLayer();
+  renderLegend();
+  renderSummary();
+  renderRanked();
+  renderTable();
+
+  if (META.map_center) {
+    map.setView(META.map_center, META.map_zoom || 9);
+  }
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    map.invalidateSize();
+    if (geojsonLayer) map.fitBounds(geojsonLayer.getBounds(), { padding: [20, 20] });
+  }));
+}
+
+// ── header ─────────────────────────────────────────────────────────────────────
+function populateHeader(cityMeta, META) {
+  document.getElementById("header-title").textContent = `US Cities Heat & Social Metrics — ${cityMeta.label}`;
+  document.getElementById("header-subtitle").textContent =
+    `Data: ${META.data_date_range[0]} to ${META.data_date_range[1]} · ${META.rolling_window_days}-day rolling window`;
+  document.getElementById("stat-polygons").innerHTML = `<strong>${META.polygon_count}</strong> tracts`;
+  document.getElementById("stat-temp").innerHTML = `Avg daytime HI: <strong>${META.city_daytime_hi_mean ?? "–"}&deg;F</strong>`;
+  document.getElementById("stat-pop").innerHTML = `Population: <strong>${Math.round(META.total_population).toLocaleString()}</strong>`;
+  document.getElementById("last-updated").textContent = `Last updated: ${META.last_updated}`;
+}
+
+// ── variable select ───────────────────────────────────────────────────────────
+function buildVariableSelect() {
+  const sel = document.getElementById("variable-select");
+  const groups = {};
+  for (const v of VARIABLES) (groups[v.group] = groups[v.group] || []).push(v);
+  sel.innerHTML = Object.entries(groups).map(([group, vars]) => `
+    <optgroup label="${group}">
+      ${vars.map(v => `<option value="${v.key}" ${v.key === currentVar ? "selected" : ""}>${v.label}${v.unit ? " ("+v.unit+")" : ""}</option>`).join("")}
+    </optgroup>
+  `).join("");
+  updateVariableDesc();
+  sel.addEventListener("change", e => {
+    currentVar = e.target.value;
+    sortKey = currentVar;
+    sortDir = -1;
+    updateVariableDesc();
+    if (cityStatus[activeCity] === "ready") {
+      renderLayer(); renderLegend(); renderSummary(); renderRanked(); renderTable();
+    }
+  });
+}
+
+function updateVariableDesc() {
+  document.getElementById("variable-desc").textContent = VAR_BY_KEY[currentVar].desc;
+}
+
+// ── color scale ────────────────────────────────────────────────────────────────
+function valueToColor(value, varDef, META) {
+  if (value == null) return NO_DATA_COLOR;
+  const stats = META.variable_stats[varDef.key];
+  if (!stats || stats.min == null) return NO_DATA_COLOR;
+  const lo = stats.min, hi = stats.max;
+  let t = hi > lo ? (value - lo) / (hi - lo) : 0.5;
+  t = Math.max(0, Math.min(1, t));
+
+  if (varDef.direction === "neutral") return interpolateColor("#1e2a4a", "#60a5fa", t);
+  if (varDef.direction === "bad-low") t = 1 - t;
+
+  if (t >= 0.75) return interpolateColor("#eab308", "#dc2626", (t - 0.75) / 0.25);
+  if (t >= 0.50) return interpolateColor("#22c55e", "#eab308", (t - 0.50) / 0.25);
+  return interpolateColor("#166534", "#22c55e", t / 0.50);
+}
+
+function interpolateColor(c1, c2, t) {
+  const r1 = parseInt(c1.slice(1,3),16), g1 = parseInt(c1.slice(3,5),16), b1 = parseInt(c1.slice(5,7),16);
+  const r2 = parseInt(c2.slice(1,3),16), g2 = parseInt(c2.slice(3,5),16), b2 = parseInt(c2.slice(5,7),16);
+  const r = Math.round(r1 + (r2-r1)*t).toString(16).padStart(2,"0");
+  const g = Math.round(g1 + (g2-g1)*t).toString(16).padStart(2,"0");
+  const b = Math.round(b1 + (b2-b1)*t).toString(16).padStart(2,"0");
+  return `#${r}${g}${b}`;
+}
+
+function fmtValue(value, varDef) {
+  if (value == null) return "–";
+  const scaled = varDef.scale100 ? value * 100 : value;
+  return scaled.toFixed(varDef.decimals) + (varDef.unit ? varDef.unit : "");
+}
+
+// ── map ────────────────────────────────────────────────────────────────────────
+function initMap() {
+  map = L.map("map", { zoomControl: false }).setView([39.5, -98.35], 4);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains: "abcd", maxZoom: 18,
+  }).addTo(map);
+  L.control.zoom({ position: "bottomright" }).addTo(map);
+  window.addEventListener("resize", () => map.invalidateSize());
+}
+
+function renderLayer() {
+  if (geojsonLayer) map.removeLayer(geojsonLayer);
+  const { GEO, META } = cityCache[activeCity];
+  const varDef = VAR_BY_KEY[currentVar];
+
+  geojsonLayer = L.geoJSON(GEO, {
+    style(feature) {
+      const p = feature.properties;
+      return {
+        fillColor: valueToColor(p[currentVar], varDef, META),
+        fillOpacity: .75,
+        color: p.name === selectedName ? "#fff" : "#0f1117",
+        weight: p.name === selectedName ? 2 : 0.3,
+        opacity: 1,
+      };
+    },
+    onEachFeature(feature, layer) {
+      layer.on({
+        mouseover() {
+          if (hoveredLayer && hoveredLayer !== layer) geojsonLayer.resetStyle(hoveredLayer);
+          hoveredLayer = layer;
+          layer.setStyle({ fillOpacity: .95, weight: 1.5, color: "#e2e8f0" });
+        },
+        mouseout() {
+          if (hoveredLayer === layer) { geojsonLayer.resetStyle(layer); hoveredLayer = null; }
+        },
+        click() { openDetail(feature.properties); },
+      });
+    },
+  }).addTo(map);
+}
+
+// ── legend ─────────────────────────────────────────────────────────────────────
+function renderLegend() {
+  const { META } = cityCache[activeCity];
+  const varDef = VAR_BY_KEY[currentVar];
+  const stats  = META.variable_stats[currentVar];
+
+  if (stats.min == null) {
+    document.getElementById("legend-gradient").style.background = NO_DATA_COLOR;
+    document.getElementById("legend-min").textContent = "no data";
+    document.getElementById("legend-max").textContent = "no data";
+    return;
+  }
+
+  const grad = [];
+  for (let i = 0; i <= 10; i++) {
+    const v = stats.min + (stats.max - stats.min) * (i / 10);
+    grad.push(valueToColor(v, varDef, META));
+  }
+  document.getElementById("legend-gradient").style.background = `linear-gradient(to right, ${grad.join(",")})`;
+  document.getElementById("legend-min").textContent = fmtValue(stats.min, varDef);
+  document.getElementById("legend-max").textContent = fmtValue(stats.max, varDef);
+}
+
+// ── summary panel ──────────────────────────────────────────────────────────────
+function renderSummary() {
+  const { META } = cityCache[activeCity];
+  const varDef = VAR_BY_KEY[currentVar];
+  const stats  = META.variable_stats[currentVar];
+  document.getElementById("summary-panel").innerHTML = `
+    <h4>${varDef.label} — Summary</h4>
+    <div class="summary-row"><span>Min</span><span>${fmtValue(stats.min, varDef)}</span></div>
+    <div class="summary-row"><span>Mean</span><span>${fmtValue(stats.mean, varDef)}</span></div>
+    <div class="summary-row"><span>Max</span><span>${fmtValue(stats.max, varDef)}</span></div>
+  `;
+}
+
+// ── ranked panel ───────────────────────────────────────────────────────────────
+function renderRanked() {
+  const { GEO } = cityCache[activeCity];
+  const varDef = VAR_BY_KEY[currentVar];
+  document.getElementById("ranked-title").textContent = `Highest — ${varDef.label}`;
+
+  const ranked = GEO.features
+    .map(f => f.properties)
+    .filter(p => p[currentVar] != null)
+    .sort((a, b) => b[currentVar] - a[currentVar])
+    .slice(0, 10);
+
+  document.getElementById("ranked-list").innerHTML = ranked.map((p, i) => `
+    <div class="ranked-item" onclick="openDetail(getProps('${escapeJs(p.name)}'))">
+      <span class="ranked-rank">${i+1}</span>
+      <span class="ranked-name">${p.name}</span>
+      <span class="ranked-val">${fmtValue(p[currentVar], varDef)}</span>
+    </div>
+  `).join("") || "<div style='font-size:.75rem;color:#64748b'>No data</div>";
+}
+
+function getProps(name) {
+  const { GEO } = cityCache[activeCity];
+  const f = GEO.features.find(f => f.properties.name === name);
+  return f ? f.properties : {};
+}
+
+// ── detail panel ──────────────────────────────────────────────────────────────
+function openDetail(props) {
+  if (!props || !props.has_data) return;
+  selectedName = props.name;
+  renderLayer();
+
+  document.getElementById("detail-name").textContent     = props.name || "(unnamed)";
+  document.getElementById("detail-district").textContent =
+    [props.adm3_name, props.gdl_region].filter(Boolean).join(" · ");
+
+  document.getElementById("heat-kv").innerHTML = kvGrid([
+    ["Daytime HI peak", props.daytime_peak_f != null ? `${props.daytime_peak_f}&deg;F` : "–"],
+    ["Heat anomaly",    props.heat_anomaly_f != null ? `+${props.heat_anomaly_f}&deg;F vs hist.` : "–"],
+    ["Extreme heat days", props.extreme_pct != null  ? `${props.extreme_pct}% of days` : "–"],
+    ["Nighttime stress",  props.nighttime_stress_f != null ? `+${props.nighttime_stress_f}&deg;F` : "–"],
+  ]);
+
+  document.getElementById("vuln-kv").innerHTML = kvGrid([
+    ["Health fac./10k",    props.health_per_10k  != null ? props.health_per_10k.toFixed(2) : "–"],
+    ["Built fraction",     props.built_frac != null ? (props.built_frac*100).toFixed(1)+"%" : "–"],
+    ["Tree canopy",        props.tree_frac  != null ? (props.tree_frac*100).toFixed(1)+"%"  : "–"],
+    ["Night lights",       props.viirs_mean != null ? props.viirs_mean.toFixed(1) : "–"],
+    ["GHSL class",         SMOD_LABELS[props.ghsl_smod] || "–"],
+    ["HDI",                props.gdl_hdi != null ? props.gdl_hdi.toFixed(3) : "–"],
+    ["Population",         props.population ? Math.round(props.population).toLocaleString() : "–"],
+  ]);
+
+  renderTsChart(props.name);
+  document.getElementById("detail").classList.add("open");
+}
+
+function kvGrid(rows) {
+  return rows.map(([label, value]) =>
+    `<div class="kv"><div class="kv-label">${label}</div><div class="kv-value">${value}</div></div>`
+  ).join("");
+}
+
+function renderTsChart(name) {
+  const { TIMESERIES } = cityCache[activeCity];
+  const series = TIMESERIES[name];
+  if (!series || !series.length) return;
+
+  const labels = series.map(d => d.date.slice(5));
+  const hiMax  = series.map(d => d.daytime_hi_max);
+  const p95    = series.map(d => d.ref_daytime_hi_p95);
+
+  if (tsChart) tsChart.destroy();
+  const ctx = document.getElementById("ts-chart").getContext("2d");
+  tsChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        { label: "Daytime HI max", data: hiMax, borderColor: "#f87171", backgroundColor: "rgba(248,113,113,.1)", fill: true, tension: .3, pointRadius: 3, borderWidth: 2 },
+        { label: "Hist. p95", data: p95, borderColor: "#60a5fa", borderDash: [4,3], fill: false, tension: .3, pointRadius: 0, borderWidth: 1.5 },
+      ],
+    },
+    options: {
+      animation: false, responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: "#64748b", font: { size: 10 } }, grid: { color: "#1e2130" } },
+        y: { ticks: { color: "#64748b", font: { size: 10 }, callback: v => v + "°F" }, grid: { color: "#1e2130" } },
+      },
+      plugins: {
+        legend: { labels: { color: "#94a3b8", font: { size: 10 }, boxWidth: 12 } },
+        tooltip: { bodyFont: { size: 11 } },
+      },
+    },
+  });
+}
+
+function closeDetail() {
+  selectedName = null;
+  document.getElementById("detail").classList.remove("open");
+  if (cityStatus[activeCity] === "ready") renderLayer();
+}
+
+// ── table ──────────────────────────────────────────────────────────────────────
+const TABLE_COLUMNS = [
+  { key:"name",               label:"Tract" },
+  { key:"adm3_name",          label:"County" },
+  { key:"population",         label:"Population",     fmt:v=>v!=null?Math.round(v).toLocaleString():"–" },
+  { key:"daytime_peak_f",     label:"HI Peak (°F)" },
+  { key:"heat_anomaly_f",     label:"Anomaly (°F)" },
+  { key:"extreme_pct",        label:"Extreme %" },
+  { key:"nighttime_stress_f", label:"Night Stress (°F)" },
+  { key:"health_per_10k",     label:"Health/10k",      fmt:v=>v!=null?v.toFixed(2):"–" },
+  { key:"built_frac",         label:"Built %",         fmt:v=>v!=null?(v*100).toFixed(0)+"%":"–" },
+  { key:"tree_frac",          label:"Tree %",          fmt:v=>v!=null?(v*100).toFixed(1)+"%":"–" },
+  { key:"viirs_mean",         label:"Night Lights" },
+  { key:"gdl_hdi",            label:"HDI",             fmt:v=>v!=null?v.toFixed(3):"–" },
+];
+
+function renderTableHead() {
+  document.getElementById("table-head-row").innerHTML = TABLE_COLUMNS.map(c =>
+    `<th onclick="sortTable('${c.key}')">${c.label} <span class="sort-arrow">&#8597;</span></th>`
+  ).join("");
+}
+
+function sortTable(key) {
+  if (sortKey === key) sortDir *= -1;
+  else { sortKey = key; sortDir = -1; }
+  renderTable();
+}
+
+function renderTable() {
+  if (cityStatus[activeCity] !== "ready") return;
+  if (!document.getElementById("table-head-row").children.length) renderTableHead();
+
+  const { GEO } = cityCache[activeCity];
+  let rows = GEO.features.map(f => f.properties).filter(p => p.has_data);
+  rows.sort((a, b) => {
+    let va = a[sortKey], vb = b[sortKey];
+    if (typeof va === "string") return sortDir * va.localeCompare(vb || "");
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    return sortDir * (va - vb);
+  });
+
+  document.getElementById("table-body").innerHTML = rows.map(p => `
+    <tr onclick="openDetail(getProps('${escapeJs(p.name)}'))">
+      ${TABLE_COLUMNS.map(c => `<td>${c.fmt ? c.fmt(p[c.key]) : (p[c.key] ?? "–")}</td>`).join("")}
+    </tr>`).join("");
+}
+
+function toggleTable() {
+  document.getElementById("table-panel").classList.toggle("open");
+}
+
+function exportCSV() {
+  const { GEO, META } = cityCache[activeCity];
+  const headers = TABLE_COLUMNS.map(c => c.key);
+  const rows = GEO.features.map(f => f.properties).filter(p => p.has_data);
+  const csv  = [headers.join(",")]
+    .concat(rows.map(p => headers.map(h => {
+      const v = p[h];
+      if (v == null) return "";
+      if (typeof v === "string") return `"${v.replace(/"/g,'""')}"`;
+      return v;
+    }).join(",")))
+    .join("\n");
+
+  const a   = document.createElement("a");
+  a.href    = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  a.download= `${activeCity}_metrics_${META.last_updated}.csv`;
+  a.click();
+}
+
+function escapeJs(s) {
+  return (s || "").replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+}
+
+// ── start ──────────────────────────────────────────────────────────────────────
+boot();
+</script>
+</body>
+</html>
