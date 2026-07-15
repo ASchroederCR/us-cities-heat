@@ -1,0 +1,115 @@
+{
+  "city_key": "twincities",
+  "city_label": "Minneapolis / St Paul, MN",
+  "last_updated": "2026-07-15",
+  "data_date_range": [
+    "2026-06-01",
+    "2026-07-14"
+  ],
+  "rolling_window_days": 30,
+  "polygon_count": 472,
+  "total_population": 1890422.329466115,
+  "variable_stats": {
+    "daytime_peak_f": {
+      "min": 86.4,
+      "max": 88.0,
+      "mean": 87.4021
+    },
+    "heat_anomaly_f": {
+      "min": 5.9,
+      "max": 6.6,
+      "mean": 6.253
+    },
+    "extreme_pct": {
+      "min": 8.0,
+      "max": 17.0,
+      "mean": 16.3411
+    },
+    "nighttime_stress_f": {
+      "min": -3.5,
+      "max": -2.0,
+      "mean": -2.8364
+    },
+    "rwi_mean": {
+      "min": null,
+      "max": null,
+      "mean": null
+    },
+    "health_per_10k": {
+      "min": 0.0,
+      "max": 42.796,
+      "mean": 3.7608
+    },
+    "built_frac": {
+      "min": 0.02,
+      "max": 0.962,
+      "mean": 0.3366
+    },
+    "tree_frac": {
+      "min": 0.019,
+      "max": 0.877,
+      "mean": 0.49
+    },
+    "canopy_frac_over_3m": {
+      "min": 0.022,
+      "max": 0.618,
+      "mean": 0.3384
+    },
+    "viirs_mean": {
+      "min": 1.5,
+      "max": 194.0,
+      "mean": 33.0678
+    },
+    "gdl_hdi": {
+      "min": 0.96,
+      "max": 0.96,
+      "mean": 0.96
+    },
+    "population": {
+      "min": 433.0,
+      "max": 43177.0,
+      "mean": 4005.1321
+    },
+    "frac_under5": {
+      "min": 0.5,
+      "max": 11.9,
+      "mean": 5.2839
+    },
+    "frac_elderly_65plus": {
+      "min": 0.1,
+      "max": 47.1,
+      "mean": 15.8294
+    },
+    "frac_elderly_75plus": {
+      "min": 0.0,
+      "max": 31.2,
+      "mean": 6.6309
+    },
+    "old_age_dependency_ratio": {
+      "min": 0.001,
+      "max": 1.046,
+      "mean": 0.2444
+    },
+    "lst_anomaly_c": {
+      "min": null,
+      "max": null,
+      "mean": null
+    },
+    "ref_daytime_hi_mean": {
+      "min": 80.1,
+      "max": 81.7,
+      "mean": 81.1621
+    },
+    "ref_daytime_hi_p95": {
+      "min": 92.4,
+      "max": 94.5,
+      "mean": 93.7258
+    }
+  },
+  "city_daytime_hi_mean": 87.4,
+  "map_center": [
+    44.97,
+    -93.2
+  ],
+  "map_zoom": 10
+}
