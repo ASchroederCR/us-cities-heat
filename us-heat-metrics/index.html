@@ -120,6 +120,8 @@
     #legend-nodata { display: flex; align-items: center; gap: 8px; font-size: .75rem; color: #cbd5e1; margin-top: 8px; }
     .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
     #legend-note { font-size: .68rem; color: #64748b; margin-top: 6px; line-height: 1.4; }
+    #legend-bins { display: flex; flex-direction: column; gap: 3px; }
+    .legend-bin-row { display: flex; align-items: center; gap: 8px; font-size: .72rem; color: #cbd5e1; }
 
     #summary-panel { padding: 10px 14px; border-bottom: 1px solid #2d3148; }
     #summary-panel h4 { font-size: .7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
@@ -269,6 +271,7 @@
       <h4>Legend</h4>
       <div id="legend-gradient"></div>
       <div id="legend-labels"><span id="legend-min">–</span><span id="legend-max">–</span></div>
+      <div id="legend-bins"></div>
       <div id="legend-nodata"><div class="legend-swatch" style="background:#374151"></div>No data</div>
       <div id="legend-note"></div>
     </div>
@@ -352,25 +355,29 @@ const CITIES = [
 // palette: "heat" (green->yellow->orange->red, direction-aware) | "blue-yellow"
 //          (deep blue low -> light yellow high, fixed) | "viridis" (fixed) |
 //          "ref-blue" (dark->bright blue, fixed) — default is "heat".
-// climrelKey: when set, map color comes from that companion field on a FIXED
-//   climatology-anchored scale (percentile position vs this tract's own WMO
-//   reference distribution), NOT this-run's observed min/max. The raw value
-//   (varDef.key) is still what's displayed in text everywhere.
+// classify: "natural" — bin into CLASS_BINS groups via natural breaks
+//   (1D k-means) on the raw value across the current city, instead of a
+//   plain linear min-max gradient. Heat variables tend to be skewed (most
+//   tracts near-normal, a long hot tail), so a plain even split compresses
+//   almost everything into one or two colors; natural breaks finds the
+//   actual clusters/gaps for real contrast. Population/demographic layers
+//   use quantile classification instead (see palette:"viridis" below).
 const VARIABLES = [
   { key:"daytime_peak_f",     label:"Daytime HI Peak",       unit:"°F", decimals:1, direction:"bad-high", group:"Heat",
-    desc:"Mean of the daily peak daytime heat index over the rolling window. Colored relative to the range of values currently on this map (highest tracts this period stand out), not a climatology benchmark." },
+    classify:"natural",
+    desc:"Mean of the daily peak daytime heat index over the rolling window. Natural-breaks classification for contrast between tracts this period." },
   { key:"heat_anomaly_f",     label:"Heat Anomaly",          unit:"°F", decimals:1, direction:"bad-high", group:"Heat",
-    climrelKey:"heat_anomaly_f_climrel",
-    desc:"How far daytime peak heat index runs above this tract's 10-year historical average for the same days. Fixed climatology-relative color scale." },
+    classify:"natural",
+    desc:"How far daytime peak heat index runs above this tract's 10-year historical average for the same days — already a climatology-relative value by definition. Natural-breaks classification." },
   { key:"extreme_pct",        label:"Extreme Heat Days",     unit:"%",  decimals:0, direction:"bad-high", group:"Heat",
-    climrelKey:"extreme_pct_climrel",
-    desc:"Share of days in the window where peak heat index exceeded the historical 95th percentile. Fixed 0-40% color scale (a stable climate implies ~5% base rate)." },
+    classify:"natural",
+    desc:"Share of days in the window where peak heat index exceeded the historical 95th percentile — already climatology-relative by definition. Natural-breaks classification." },
   { key:"nighttime_stress_f", label:"Nighttime Stress",      unit:"°F", decimals:1, direction:"bad-high", group:"Heat",
-    climrelKey:"nighttime_stress_f_climrel",
-    desc:"How far nighttime heat index runs above the historical median — limited overnight cooling. Fixed climatology-relative color scale." },
+    classify:"natural",
+    desc:"How far nighttime heat index runs above the historical median — limited overnight cooling; already climatology-relative by definition. Natural-breaks classification." },
   { key:"lst_anomaly_c",      label:"Land Surface Temp Anomaly", unit:"°C", decimals:2, direction:"bad-high", group:"Heat",
-    climrelKey:"lst_anomaly_c_climrel",
-    desc:"Satellite land surface temperature vs. its warm-season baseline — surface heating (pavement, roofs), not air temperature. Fixed 0–8°C color scale." },
+    classify:"natural",
+    desc:"Satellite land surface temperature vs. its warm-season baseline — surface heating (pavement, roofs), not air temperature. Natural-breaks classification." },
 
   { key:"ref_daytime_hi_mean", label:"WMO Reference — Mean",  unit:"°F", decimals:1, palette:"ref-blue", group:"Climatology",
     desc:"10-year (2016–2025) historical average daytime peak heat index for this tract and time of year — the baseline other heat variables are compared against." },
@@ -390,15 +397,15 @@ const VARIABLES = [
   { key:"gdl_hdi",            label:"HDI",                   unit:"",   decimals:3, direction:"bad-low",  group:"Social",
     desc:"Subnational Human Development Index (Global Data Lab)." },
   { key:"population",         label:"Population",            unit:"",   decimals:0, palette:"viridis", group:"Social",
-    desc:"LandScan population estimate. Viridis palette (dark purple = low, yellow = high)." },
+    desc:"LandScan population estimate. Viridis palette (dark purple = low, yellow = high), classed into quintiles (equal-count bins) rather than an even value range." },
 
-  { key:"frac_under5",         label:"Population Under 5",  unit:"%", decimals:1, direction:"bad-high", group:"Demographics",
-    desc:"Share of residents under age 5 (WorldPop age-structure model) — a heat-vulnerable age group." },
-  { key:"frac_elderly_65plus", label:"Population 65+",      unit:"%", decimals:1, direction:"bad-high", group:"Demographics",
-    desc:"Share of residents 65 and older (WorldPop) — elevated heat-mortality risk." },
-  { key:"frac_elderly_75plus", label:"Population 75+",      unit:"%", decimals:1, direction:"bad-high", group:"Demographics",
-    desc:"Share of residents 75 and older (WorldPop) — highest heat-mortality risk group." },
-  { key:"old_age_dependency_ratio", label:"Old-Age Dependency Ratio", unit:"", decimals:2, direction:"bad-high", group:"Demographics",
+  { key:"frac_under5",         label:"Population Under 5",  unit:"%", decimals:1, palette:"viridis", group:"Demographics",
+    desc:"Share of residents under age 5 (WorldPop age-structure model) — a heat-vulnerable age group. Viridis, classed into quintiles." },
+  { key:"frac_elderly_65plus", label:"Population 65+",      unit:"%", decimals:1, palette:"viridis", group:"Demographics",
+    desc:"Share of residents 65 and older (WorldPop) — elevated heat-mortality risk. Viridis, classed into quintiles." },
+  { key:"frac_elderly_75plus", label:"Population 75+",      unit:"%", decimals:1, palette:"viridis", group:"Demographics",
+    desc:"Share of residents 75 and older (WorldPop) — highest heat-mortality risk group. Viridis, classed into quintiles." },
+  { key:"old_age_dependency_ratio", label:"Old-Age Dependency Ratio", unit:"", decimals:2, palette:"viridis", group:"Demographics",
     desc:"Elderly population relative to working-age population — a proxy for community capacity to support heat-vulnerable elders." },
 ];
 const VAR_BY_KEY = Object.fromEntries(VARIABLES.map(v => [v.key, v]));
@@ -489,9 +496,11 @@ function renderCity() {
     document.getElementById("stat-pop").textContent = "";
     document.getElementById("last-updated").textContent = "";
     if (geojsonLayer) { map.removeLayer(geojsonLayer); geojsonLayer = null; }
+    setLegendMode("gradient");
     document.getElementById("legend-min").textContent = "–";
     document.getElementById("legend-max").textContent = "–";
     document.getElementById("legend-gradient").style.background = "none";
+    document.getElementById("legend-bins").innerHTML = "";
     document.getElementById("legend-note").textContent = "";
     document.getElementById("summary-panel").innerHTML = "";
     document.getElementById("ranked-list").innerHTML = "";
@@ -557,22 +566,98 @@ function updateVariableDesc() {
 }
 
 // ── color scale ────────────────────────────────────────────────────────────────
-// climrel fixed range: -0.3 (well below normal) .. 0 (at historical mean) ..
-// 1.0 (at historical p99) .. 1.3 (far beyond p99), mapped to 0..1 for heatColor.
-const CLIMREL_LO = -0.3, CLIMREL_HI = 1.3;
+// Two classification schemes replace plain linear min-max scaling, both
+// binning tracts into CLASS_BINS groups so nearby-but-different values don't
+// wash out into the same color:
+//   - "quantile" (Viridis / population layers): equal tract COUNT per bin.
+//   - "natural"  (heat layers): 1D k-means clustering — an approximation of
+//     Jenks natural breaks — bins follow actual gaps/clusters in the data,
+//     which gives heat variables (often skewed, most tracts near-normal with
+//     a long hot tail) much more visual contrast than an even value split.
+const CLASS_BINS = 5;
 
-function colorForFeature(props, varDef, META) {
-  if (!props || !props.has_data) return NO_DATA_COLOR;
-
-  if (varDef.climrelKey) {
-    const raw = props[varDef.climrelKey];
-    if (raw == null) return NO_DATA_COLOR;
-    const t = (Math.max(CLIMREL_LO, Math.min(CLIMREL_HI, raw)) - CLIMREL_LO) / (CLIMREL_HI - CLIMREL_LO);
-    return heatColor(t);
+function computeQuantileBreaks(values, nBins) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const breaks = [];
+  for (let i = 1; i < nBins; i++) {
+    const idx = Math.min(sorted.length - 1, Math.floor((i / nBins) * sorted.length));
+    breaks.push(sorted[idx]);
   }
+  return breaks; // nBins-1 interior breakpoints
+}
+
+function computeNaturalBreaks(values, nBins, maxIter = 25) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const unique = [...new Set(sorted)];
+  if (unique.length <= nBins) {
+    const breaks = [];
+    for (let i = 0; i < unique.length - 1; i++) breaks.push((unique[i] + unique[i + 1]) / 2);
+    while (breaks.length < nBins - 1) breaks.push(breaks[breaks.length - 1] ?? unique[0]);
+    return breaks;
+  }
+
+  // 1D k-means, seeded from evenly-spaced quantile positions
+  let centroids = [];
+  for (let i = 0; i < nBins; i++) {
+    const idx = Math.min(sorted.length - 1, Math.floor((i + 0.5) / nBins * sorted.length));
+    centroids.push(sorted[idx]);
+  }
+  for (let iter = 0; iter < maxIter; iter++) {
+    const sums = new Array(nBins).fill(0);
+    const counts = new Array(nBins).fill(0);
+    for (const v of sorted) {
+      let bestI = 0, bestD = Infinity;
+      for (let i = 0; i < nBins; i++) {
+        const d = Math.abs(v - centroids[i]);
+        if (d < bestD) { bestD = d; bestI = i; }
+      }
+      sums[bestI] += v; counts[bestI]++;
+    }
+    let changed = false;
+    for (let i = 0; i < nBins; i++) {
+      if (!counts[i]) continue;
+      const mean = sums[i] / counts[i];
+      if (Math.abs(mean - centroids[i]) > 1e-9) changed = true;
+      centroids[i] = mean;
+    }
+    if (!changed) break;
+  }
+  centroids.sort((a, b) => a - b);
+  const breaks = [];
+  for (let i = 0; i < centroids.length - 1; i++) breaks.push((centroids[i] + centroids[i + 1]) / 2);
+  return breaks;
+}
+
+function binIndex(value, breaks) {
+  for (let i = 0; i < breaks.length; i++) {
+    if (value <= breaks[i]) return i;
+  }
+  return breaks.length;
+}
+
+function breaksForVar(GEO, varDef) {
+  const values = GEO.features.map(f => f.properties[varDef.key]).filter(v => v != null);
+  if (!values.length) return null;
+  if (varDef.palette === "viridis") return computeQuantileBreaks(values, CLASS_BINS);
+  if (varDef.classify === "natural") return computeNaturalBreaks(values, CLASS_BINS);
+  return null;
+}
+
+function binColor(bin, varDef) {
+  let t = bin / (CLASS_BINS - 1);
+  if (varDef.palette === "viridis") return viridisColor(t);
+  if (varDef.direction === "bad-low") t = 1 - t;
+  return heatColor(t);
+}
+
+function colorForFeature(props, varDef, META, breaks) {
+  if (!props || !props.has_data) return NO_DATA_COLOR;
 
   const value = props[varDef.key];
   if (value == null) return NO_DATA_COLOR;
+
+  if (breaks) return binColor(binIndex(value, breaks), varDef);
+
   const stats = META.variable_stats[varDef.key];
   if (!stats || stats.min == null) return NO_DATA_COLOR;
   const lo = stats.min, hi = stats.max;
@@ -641,12 +726,13 @@ function renderLayer() {
   if (geojsonLayer) map.removeLayer(geojsonLayer);
   const { GEO, META } = cityCache[activeCity];
   const varDef = VAR_BY_KEY[currentVar];
+  const breaks = breaksForVar(GEO, varDef);
 
   geojsonLayer = L.geoJSON(GEO, {
     style(feature) {
       const p = feature.properties;
       return {
-        fillColor: colorForFeature(p, varDef, META),
+        fillColor: colorForFeature(p, varDef, META, breaks),
         fillOpacity: BASE_FILL_OPACITY,
         color: p.name === selectedName ? "#fff" : "#0f1117",
         weight: p.name === selectedName ? 2 : 0.3,
@@ -689,35 +775,59 @@ function popupHtml(props) {
 }
 
 // ── legend ─────────────────────────────────────────────────────────────────────
-function renderLegend() {
-  const { META } = cityCache[activeCity];
-  const varDef = VAR_BY_KEY[currentVar];
+function setLegendMode(mode) {
+  // mode: "gradient" | "bins"
+  document.getElementById("legend-gradient").style.display = mode === "gradient" ? "block" : "none";
+  document.getElementById("legend-labels").style.display  = mode === "gradient" ? "flex"  : "none";
+  document.getElementById("legend-bins").style.display    = mode === "bins"     ? "flex"  : "none";
+}
 
-  if (varDef.climrelKey) {
-    const grad = [];
-    for (let i = 0; i <= 10; i++) grad.push(heatColor(i / 10));
-    document.getElementById("legend-gradient").style.background = `linear-gradient(to right, ${grad.join(",")})`;
-    document.getElementById("legend-min").textContent = "Below normal";
-    document.getElementById("legend-max").textContent = "Historic p99+";
-    document.getElementById("legend-note").textContent =
-      "Scaled to this tract's own 10-year WMO reference distribution, not the city's observed range this run.";
-    return;
-  }
+function renderLegend() {
+  const { GEO, META } = cityCache[activeCity];
+  const varDef = VAR_BY_KEY[currentVar];
   document.getElementById("legend-note").textContent = "";
 
   const stats = META.variable_stats[currentVar];
   if (!stats || stats.min == null) {
+    setLegendMode("gradient");
     document.getElementById("legend-gradient").style.background = NO_DATA_COLOR;
     document.getElementById("legend-min").textContent = "no data";
     document.getElementById("legend-max").textContent = "no data";
     return;
   }
 
+  const breaks = breaksForVar(GEO, varDef);
+  if (breaks) {
+    setLegendMode("bins");
+    document.getElementById("legend-bins").innerHTML = renderBinRows(breaks, stats, varDef);
+    document.getElementById("legend-note").textContent = varDef.palette === "viridis"
+      ? "Quintiles — equal number of tracts per color, not an equal value range."
+      : "Natural breaks — bins follow clusters/gaps in this city's actual data, not an even value split.";
+    return;
+  }
+
+  setLegendMode("gradient");
   const grad = [];
   for (let i = 0; i <= 10; i++) grad.push(paletteColor(i / 10, varDef));
   document.getElementById("legend-gradient").style.background = `linear-gradient(to right, ${grad.join(",")})`;
   document.getElementById("legend-min").textContent = fmtValue(stats.min, varDef);
   document.getElementById("legend-max").textContent = fmtValue(stats.max, varDef);
+}
+
+function renderBinRows(breaks, stats, varDef) {
+  const edges = [stats.min, ...breaks, stats.max];
+  const rows = [];
+  for (let i = 0; i < CLASS_BINS; i++) {
+    const color = binColor(i, varDef);
+    const lo = fmtValue(edges[i], varDef);
+    const hi = fmtValue(edges[i + 1], varDef);
+    rows.push(`
+      <div class="legend-bin-row">
+        <div class="legend-swatch" style="background:${color}"></div>
+        <span>${lo} – ${hi}</span>
+      </div>`);
+  }
+  return rows.join("");
 }
 
 // ── summary panel ──────────────────────────────────────────────────────────────
