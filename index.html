@@ -119,6 +119,7 @@
     #legend-labels { display: flex; justify-content: space-between; font-size: .7rem; color: #94a3b8; }
     #legend-nodata { display: flex; align-items: center; gap: 8px; font-size: .75rem; color: #cbd5e1; margin-top: 8px; }
     .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+    #legend-note { font-size: .68rem; color: #64748b; margin-top: 6px; line-height: 1.4; }
 
     #summary-panel { padding: 10px 14px; border-bottom: 1px solid #2d3148; }
     #summary-panel h4 { font-size: .7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
@@ -140,6 +141,17 @@
     /* ── map ────────────────────────────────────────────────── */
     #map-wrap { flex: 1; position: relative; overflow: hidden; }
     #map { width: 100%; height: 100%; background: #1a1d27; }
+
+    /* dark-theme Leaflet popups */
+    .leaflet-popup-content-wrapper { background: #1a1d27; color: #e2e8f0; border: 1px solid #2d3148; border-radius: 8px; }
+    .leaflet-popup-tip { background: #1a1d27; border: 1px solid #2d3148; }
+    .leaflet-popup-content { margin: 10px 12px; font-family: inherit; }
+    .leaflet-popup-close-button { color: #94a3b8 !important; }
+    .leaflet-popup-close-button:hover { color: #fff !important; }
+    .popup-name { font-size: .82rem; font-weight: 700; color: #fff; margin-bottom: 6px; }
+    .popup-row { display: flex; justify-content: space-between; gap: 14px; font-size: .74rem; color: #cbd5e1; padding: 1px 0; }
+    .popup-row span:first-child { color: #94a3b8; }
+    .popup-row span:last-child { font-weight: 600; color: #e2e8f0; }
 
     #pending-overlay {
       position: absolute; inset: 0; z-index: 800;
@@ -258,6 +270,7 @@
       <div id="legend-gradient"></div>
       <div id="legend-labels"><span id="legend-min">–</span><span id="legend-max">–</span></div>
       <div id="legend-nodata"><div class="legend-swatch" style="background:#374151"></div>No data</div>
+      <div id="legend-note"></div>
     </div>
 
     <div id="summary-panel"></div>
@@ -293,6 +306,10 @@
         <div class="detail-section">
           <h4>Daytime Heat Index vs. Historical p95</h4>
           <div class="chart-wrap"><canvas id="ts-chart"></canvas></div>
+        </div>
+        <div class="detail-section">
+          <h4>Demographics</h4>
+          <div class="kv-grid" id="demo-kv"></div>
         </div>
         <div class="detail-section">
           <h4>Social &amp; Environmental Metrics</h4>
@@ -332,31 +349,61 @@ const CITIES = [
 ];
 
 // ── variable definitions ────────────────────────────────────────────────────
-// (no rwi_mean — Meta RWI has no US coverage, would be null on every tab)
+// palette: "heat" (green->yellow->orange->red, direction-aware) | "blue-yellow"
+//          (deep blue low -> light yellow high, fixed) | "viridis" (fixed) |
+//          "ref-blue" (dark->bright blue, fixed) — default is "heat".
+// climrelKey: when set, map color comes from that companion field on a FIXED
+//   climatology-anchored scale (percentile position vs this tract's own WMO
+//   reference distribution), NOT this-run's observed min/max. The raw value
+//   (varDef.key) is still what's displayed in text everywhere.
 const VARIABLES = [
   { key:"daytime_peak_f",     label:"Daytime HI Peak",       unit:"°F", decimals:1, direction:"bad-high", group:"Heat",
-    desc:"Mean of the daily peak daytime heat index over the rolling window." },
+    desc:"Mean of the daily peak daytime heat index over the rolling window. Colored relative to the range of values currently on this map (highest tracts this period stand out), not a climatology benchmark." },
   { key:"heat_anomaly_f",     label:"Heat Anomaly",          unit:"°F", decimals:1, direction:"bad-high", group:"Heat",
-    desc:"How far daytime peak heat index runs above this tract's 10-year historical average for the same days." },
+    climrelKey:"heat_anomaly_f_climrel",
+    desc:"How far daytime peak heat index runs above this tract's 10-year historical average for the same days. Fixed climatology-relative color scale." },
   { key:"extreme_pct",        label:"Extreme Heat Days",     unit:"%",  decimals:0, direction:"bad-high", group:"Heat",
-    desc:"Share of days in the window where peak heat index exceeded the historical 95th percentile." },
+    climrelKey:"extreme_pct_climrel",
+    desc:"Share of days in the window where peak heat index exceeded the historical 95th percentile. Fixed 0-40% color scale (a stable climate implies ~5% base rate)." },
   { key:"nighttime_stress_f", label:"Nighttime Stress",      unit:"°F", decimals:1, direction:"bad-high", group:"Heat",
-    desc:"How far nighttime heat index runs above the historical median — limited overnight cooling." },
+    climrelKey:"nighttime_stress_f_climrel",
+    desc:"How far nighttime heat index runs above the historical median — limited overnight cooling. Fixed climatology-relative color scale." },
+  { key:"lst_anomaly_c",      label:"Land Surface Temp Anomaly", unit:"°C", decimals:2, direction:"bad-high", group:"Heat",
+    climrelKey:"lst_anomaly_c_climrel",
+    desc:"Satellite land surface temperature vs. its warm-season baseline — surface heating (pavement, roofs), not air temperature. Fixed 0–8°C color scale." },
+
+  { key:"ref_daytime_hi_mean", label:"WMO Reference — Mean",  unit:"°F", decimals:1, palette:"ref-blue", group:"Climatology",
+    desc:"10-year (2016–2025) historical average daytime peak heat index for this tract and time of year — the baseline other heat variables are compared against." },
+  { key:"ref_daytime_hi_p95",  label:"WMO Reference — P95",   unit:"°F", decimals:1, palette:"ref-blue", group:"Climatology",
+    desc:"10-year historical 95th-percentile daytime peak heat index — the threshold used to define an \"extreme heat day.\"" },
+
   { key:"health_per_10k",     label:"Health Facilities/10k", unit:"",   decimals:2, direction:"bad-low",  group:"Social",
     desc:"Health facilities per 10,000 residents (Healthsites.io)." },
   { key:"built_frac",         label:"Built Fraction",        unit:"%",  decimals:0, direction:"bad-high", group:"Social", scale100:true,
     desc:"Share of land covered by impervious/built surface (ESA WorldCover)." },
-  { key:"tree_frac",          label:"Tree Canopy",           unit:"%",  decimals:1, direction:"bad-low",  group:"Social", scale100:true,
-    desc:"Share of land under tree cover (ESA WorldCover)." },
-  { key:"viirs_mean",         label:"Night Lights (VIIRS)",  unit:"",   decimals:1, direction:"neutral",  group:"Social",
-    desc:"Mean night-time light radiance — proxy for electrification/economic activity." },
+  { key:"tree_frac",          label:"Tree Canopy (WorldCover)", unit:"%", decimals:1, direction:"bad-low",  group:"Social", scale100:true,
+    desc:"Share of land under tree cover (ESA WorldCover land classification)." },
+  { key:"canopy_frac_over_3m", label:"Canopy Cover >3m (CHM)", unit:"%", decimals:1, direction:"bad-low",  group:"Social", scale100:true,
+    desc:"Share of land under canopy taller than 3m from a canopy-height model — a finer-grained companion to the WorldCover tree fraction above." },
+  { key:"viirs_mean",         label:"Night Lights (VIIRS)",  unit:"",   decimals:1, palette:"blue-yellow", group:"Social",
+    desc:"Mean night-time light radiance — proxy for electrification/economic activity. Deep blue = low, light yellow = high." },
   { key:"gdl_hdi",            label:"HDI",                   unit:"",   decimals:3, direction:"bad-low",  group:"Social",
     desc:"Subnational Human Development Index (Global Data Lab)." },
-  { key:"population",         label:"Population",            unit:"",   decimals:0, direction:"neutral",  group:"Social",
-    desc:"LandScan population estimate." },
+  { key:"population",         label:"Population",            unit:"",   decimals:0, palette:"viridis", group:"Social",
+    desc:"LandScan population estimate. Viridis palette (dark purple = low, yellow = high)." },
+
+  { key:"frac_under5",         label:"Population Under 5",  unit:"%", decimals:1, direction:"bad-high", group:"Demographics",
+    desc:"Share of residents under age 5 (WorldPop age-structure model) — a heat-vulnerable age group." },
+  { key:"frac_elderly_65plus", label:"Population 65+",      unit:"%", decimals:1, direction:"bad-high", group:"Demographics",
+    desc:"Share of residents 65 and older (WorldPop) — elevated heat-mortality risk." },
+  { key:"frac_elderly_75plus", label:"Population 75+",      unit:"%", decimals:1, direction:"bad-high", group:"Demographics",
+    desc:"Share of residents 75 and older (WorldPop) — highest heat-mortality risk group." },
+  { key:"old_age_dependency_ratio", label:"Old-Age Dependency Ratio", unit:"", decimals:2, direction:"bad-high", group:"Demographics",
+    desc:"Elderly population relative to working-age population — a proxy for community capacity to support heat-vulnerable elders." },
 ];
 const VAR_BY_KEY = Object.fromEntries(VARIABLES.map(v => [v.key, v]));
 const NO_DATA_COLOR = "#374151";
+const VIRIDIS_STOPS = ["#440154","#482878","#3e4989","#31688e","#26828e","#1f9e89","#35b779","#6ece58","#b5de2b","#fde725"];
 
 const SMOD_LABELS = {
   30: "Urban Core", 23: "Dense Urban", 22: "Semi-Dense Urban",
@@ -445,6 +492,7 @@ function renderCity() {
     document.getElementById("legend-min").textContent = "–";
     document.getElementById("legend-max").textContent = "–";
     document.getElementById("legend-gradient").style.background = "none";
+    document.getElementById("legend-note").textContent = "";
     document.getElementById("summary-panel").innerHTML = "";
     document.getElementById("ranked-list").innerHTML = "";
     document.getElementById("table-body").innerHTML = "";
@@ -486,9 +534,10 @@ function buildVariableSelect() {
   const sel = document.getElementById("variable-select");
   const groups = {};
   for (const v of VARIABLES) (groups[v.group] = groups[v.group] || []).push(v);
-  sel.innerHTML = Object.entries(groups).map(([group, vars]) => `
+  const groupOrder = ["Heat", "Climatology", "Social", "Demographics"];
+  sel.innerHTML = groupOrder.filter(g => groups[g]).map(group => `
     <optgroup label="${group}">
-      ${vars.map(v => `<option value="${v.key}" ${v.key === currentVar ? "selected" : ""}>${v.label}${v.unit ? " ("+v.unit+")" : ""}</option>`).join("")}
+      ${groups[group].map(v => `<option value="${v.key}" ${v.key === currentVar ? "selected" : ""}>${v.label}${v.unit ? " ("+v.unit+")" : ""}</option>`).join("")}
     </optgroup>
   `).join("");
   updateVariableDesc();
@@ -508,20 +557,55 @@ function updateVariableDesc() {
 }
 
 // ── color scale ────────────────────────────────────────────────────────────────
-function valueToColor(value, varDef, META) {
+// climrel fixed range: -0.3 (well below normal) .. 0 (at historical mean) ..
+// 1.0 (at historical p99) .. 1.3 (far beyond p99), mapped to 0..1 for heatColor.
+const CLIMREL_LO = -0.3, CLIMREL_HI = 1.3;
+
+function colorForFeature(props, varDef, META) {
+  if (!props || !props.has_data) return NO_DATA_COLOR;
+
+  if (varDef.climrelKey) {
+    const raw = props[varDef.climrelKey];
+    if (raw == null) return NO_DATA_COLOR;
+    const t = (Math.max(CLIMREL_LO, Math.min(CLIMREL_HI, raw)) - CLIMREL_LO) / (CLIMREL_HI - CLIMREL_LO);
+    return heatColor(t);
+  }
+
+  const value = props[varDef.key];
   if (value == null) return NO_DATA_COLOR;
   const stats = META.variable_stats[varDef.key];
   if (!stats || stats.min == null) return NO_DATA_COLOR;
   const lo = stats.min, hi = stats.max;
   let t = hi > lo ? (value - lo) / (hi - lo) : 0.5;
   t = Math.max(0, Math.min(1, t));
+  return paletteColor(t, varDef);
+}
 
-  if (varDef.direction === "neutral") return interpolateColor("#1e2a4a", "#60a5fa", t);
-  if (varDef.direction === "bad-low") t = 1 - t;
+function paletteColor(t, varDef) {
+  switch (varDef.palette) {
+    case "viridis":     return viridisColor(t);
+    case "blue-yellow": return interpolateColor("#0a1a3f", "#fef9c3", t);
+    case "ref-blue":    return interpolateColor("#1e2a4a", "#60a5fa", t);
+    default:
+      if (varDef.direction === "bad-low") t = 1 - t;
+      return heatColor(t);
+  }
+}
 
+function heatColor(t) {
+  t = Math.max(0, Math.min(1, t));
   if (t >= 0.75) return interpolateColor("#eab308", "#dc2626", (t - 0.75) / 0.25);
   if (t >= 0.50) return interpolateColor("#22c55e", "#eab308", (t - 0.50) / 0.25);
   return interpolateColor("#166534", "#22c55e", t / 0.50);
+}
+
+function viridisColor(t) {
+  t = Math.max(0, Math.min(1, t));
+  const n = VIRIDIS_STOPS.length - 1;
+  const idx = t * n;
+  const i0 = Math.floor(idx);
+  const i1 = Math.min(i0 + 1, n);
+  return interpolateColor(VIRIDIS_STOPS[i0], VIRIDIS_STOPS[i1], idx - i0);
 }
 
 function interpolateColor(c1, c2, t) {
@@ -550,6 +634,9 @@ function initMap() {
   window.addEventListener("resize", () => map.invalidateSize());
 }
 
+const BASE_FILL_OPACITY  = 0.7;  // 0.3 transparency on every layer
+const HOVER_FILL_OPACITY = 0.9;
+
 function renderLayer() {
   if (geojsonLayer) map.removeLayer(geojsonLayer);
   const { GEO, META } = cityCache[activeCity];
@@ -559,19 +646,20 @@ function renderLayer() {
     style(feature) {
       const p = feature.properties;
       return {
-        fillColor: valueToColor(p[currentVar], varDef, META),
-        fillOpacity: .75,
+        fillColor: colorForFeature(p, varDef, META),
+        fillOpacity: BASE_FILL_OPACITY,
         color: p.name === selectedName ? "#fff" : "#0f1117",
         weight: p.name === selectedName ? 2 : 0.3,
         opacity: 1,
       };
     },
     onEachFeature(feature, layer) {
+      layer.bindPopup(() => popupHtml(feature.properties));
       layer.on({
         mouseover() {
           if (hoveredLayer && hoveredLayer !== layer) geojsonLayer.resetStyle(hoveredLayer);
           hoveredLayer = layer;
-          layer.setStyle({ fillOpacity: .95, weight: 1.5, color: "#e2e8f0" });
+          layer.setStyle({ fillOpacity: HOVER_FILL_OPACITY, weight: 1.5, color: "#e2e8f0" });
         },
         mouseout() {
           if (hoveredLayer === layer) { geojsonLayer.resetStyle(layer); hoveredLayer = null; }
@@ -582,13 +670,43 @@ function renderLayer() {
   }).addTo(map);
 }
 
+// ── popup ──────────────────────────────────────────────────────────────────────
+function popupHtml(props) {
+  if (!props.has_data) {
+    return `<div class="popup-name">${props.name}</div><div class="popup-row"><span>No data</span></div>`;
+  }
+  const pop = props.population != null ? Math.round(props.population).toLocaleString() : "–";
+  const u5  = props.frac_under5 != null ? props.frac_under5.toFixed(1)+"%" : "–";
+  const e65 = props.frac_elderly_65plus != null ? props.frac_elderly_65plus.toFixed(1)+"%" : "–";
+  const e75 = props.frac_elderly_75plus != null ? props.frac_elderly_75plus.toFixed(1)+"%" : "–";
+  return `
+    <div class="popup-name">${props.name}</div>
+    <div class="popup-row"><span>Population</span><span>${pop}</span></div>
+    <div class="popup-row"><span>Under 5</span><span>${u5}</span></div>
+    <div class="popup-row"><span>65+</span><span>${e65}</span></div>
+    <div class="popup-row"><span>75+</span><span>${e75}</span></div>
+  `;
+}
+
 // ── legend ─────────────────────────────────────────────────────────────────────
 function renderLegend() {
   const { META } = cityCache[activeCity];
   const varDef = VAR_BY_KEY[currentVar];
-  const stats  = META.variable_stats[currentVar];
 
-  if (stats.min == null) {
+  if (varDef.climrelKey) {
+    const grad = [];
+    for (let i = 0; i <= 10; i++) grad.push(heatColor(i / 10));
+    document.getElementById("legend-gradient").style.background = `linear-gradient(to right, ${grad.join(",")})`;
+    document.getElementById("legend-min").textContent = "Below normal";
+    document.getElementById("legend-max").textContent = "Historic p99+";
+    document.getElementById("legend-note").textContent =
+      "Scaled to this tract's own 10-year WMO reference distribution, not the city's observed range this run.";
+    return;
+  }
+  document.getElementById("legend-note").textContent = "";
+
+  const stats = META.variable_stats[currentVar];
+  if (!stats || stats.min == null) {
     document.getElementById("legend-gradient").style.background = NO_DATA_COLOR;
     document.getElementById("legend-min").textContent = "no data";
     document.getElementById("legend-max").textContent = "no data";
@@ -596,10 +714,7 @@ function renderLegend() {
   }
 
   const grad = [];
-  for (let i = 0; i <= 10; i++) {
-    const v = stats.min + (stats.max - stats.min) * (i / 10);
-    grad.push(valueToColor(v, varDef, META));
-  }
+  for (let i = 0; i <= 10; i++) grad.push(paletteColor(i / 10, varDef));
   document.getElementById("legend-gradient").style.background = `linear-gradient(to right, ${grad.join(",")})`;
   document.getElementById("legend-min").textContent = fmtValue(stats.min, varDef);
   document.getElementById("legend-max").textContent = fmtValue(stats.max, varDef);
@@ -657,19 +772,30 @@ function openDetail(props) {
 
   document.getElementById("heat-kv").innerHTML = kvGrid([
     ["Daytime HI peak", props.daytime_peak_f != null ? `${props.daytime_peak_f}&deg;F` : "–"],
-    ["Heat anomaly",    props.heat_anomaly_f != null ? `+${props.heat_anomaly_f}&deg;F vs hist.` : "–"],
+    ["Heat anomaly",    props.heat_anomaly_f != null ? `${props.heat_anomaly_f > 0 ? "+" : ""}${props.heat_anomaly_f}&deg;F vs hist.` : "–"],
     ["Extreme heat days", props.extreme_pct != null  ? `${props.extreme_pct}% of days` : "–"],
-    ["Nighttime stress",  props.nighttime_stress_f != null ? `+${props.nighttime_stress_f}&deg;F` : "–"],
+    ["Nighttime stress",  props.nighttime_stress_f != null ? `${props.nighttime_stress_f > 0 ? "+" : ""}${props.nighttime_stress_f}&deg;F` : "–"],
+    ["Land surface temp anomaly", props.lst_anomaly_c != null ? `${props.lst_anomaly_c > 0 ? "+" : ""}${props.lst_anomaly_c}&deg;C` : "–"],
+    ["WMO ref. mean (daytime)", props.ref_daytime_hi_mean != null ? `${props.ref_daytime_hi_mean}&deg;F` : "–"],
+    ["WMO ref. p95 (daytime)",  props.ref_daytime_hi_p95  != null ? `${props.ref_daytime_hi_p95}&deg;F`  : "–"],
+  ]);
+
+  document.getElementById("demo-kv").innerHTML = kvGrid([
+    ["Population",   props.population ? Math.round(props.population).toLocaleString() : "–"],
+    ["Under 5",      props.frac_under5 != null ? props.frac_under5.toFixed(1)+"%" : "–"],
+    ["65+",          props.frac_elderly_65plus != null ? props.frac_elderly_65plus.toFixed(1)+"%" : "–"],
+    ["75+",          props.frac_elderly_75plus != null ? props.frac_elderly_75plus.toFixed(1)+"%" : "–"],
+    ["Old-age dependency ratio", props.old_age_dependency_ratio != null ? props.old_age_dependency_ratio.toFixed(2) : "–"],
   ]);
 
   document.getElementById("vuln-kv").innerHTML = kvGrid([
     ["Health fac./10k",    props.health_per_10k  != null ? props.health_per_10k.toFixed(2) : "–"],
     ["Built fraction",     props.built_frac != null ? (props.built_frac*100).toFixed(1)+"%" : "–"],
-    ["Tree canopy",        props.tree_frac  != null ? (props.tree_frac*100).toFixed(1)+"%"  : "–"],
+    ["Tree canopy (WC)",   props.tree_frac  != null ? (props.tree_frac*100).toFixed(1)+"%"  : "–"],
+    ["Canopy >3m (CHM)",   props.canopy_frac_over_3m != null ? (props.canopy_frac_over_3m*100).toFixed(1)+"%" : "–"],
     ["Night lights",       props.viirs_mean != null ? props.viirs_mean.toFixed(1) : "–"],
     ["GHSL class",         SMOD_LABELS[props.ghsl_smod] || "–"],
     ["HDI",                props.gdl_hdi != null ? props.gdl_hdi.toFixed(3) : "–"],
-    ["Population",         props.population ? Math.round(props.population).toLocaleString() : "–"],
   ]);
 
   renderTsChart(props.name);
@@ -731,9 +857,17 @@ const TABLE_COLUMNS = [
   { key:"heat_anomaly_f",     label:"Anomaly (°F)" },
   { key:"extreme_pct",        label:"Extreme %" },
   { key:"nighttime_stress_f", label:"Night Stress (°F)" },
+  { key:"lst_anomaly_c",      label:"LST Anomaly (°C)" },
+  { key:"ref_daytime_hi_mean",label:"WMO Ref Mean (°F)" },
+  { key:"ref_daytime_hi_p95", label:"WMO Ref P95 (°F)" },
+  { key:"frac_under5",        label:"Under 5 %",       fmt:v=>v!=null?v.toFixed(1)+"%":"–" },
+  { key:"frac_elderly_65plus",label:"65+ %",           fmt:v=>v!=null?v.toFixed(1)+"%":"–" },
+  { key:"frac_elderly_75plus",label:"75+ %",           fmt:v=>v!=null?v.toFixed(1)+"%":"–" },
+  { key:"old_age_dependency_ratio", label:"Dependency Ratio", fmt:v=>v!=null?v.toFixed(2):"–" },
   { key:"health_per_10k",     label:"Health/10k",      fmt:v=>v!=null?v.toFixed(2):"–" },
   { key:"built_frac",         label:"Built %",         fmt:v=>v!=null?(v*100).toFixed(0)+"%":"–" },
-  { key:"tree_frac",          label:"Tree %",          fmt:v=>v!=null?(v*100).toFixed(1)+"%":"–" },
+  { key:"tree_frac",          label:"Tree % (WC)",     fmt:v=>v!=null?(v*100).toFixed(1)+"%":"–" },
+  { key:"canopy_frac_over_3m",label:"Canopy % (CHM)",  fmt:v=>v!=null?(v*100).toFixed(1)+"%":"–" },
   { key:"viirs_mean",         label:"Night Lights" },
   { key:"gdl_hdi",            label:"HDI",             fmt:v=>v!=null?v.toFixed(3):"–" },
 ];

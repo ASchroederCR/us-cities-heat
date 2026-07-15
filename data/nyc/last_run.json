@@ -50,6 +50,11 @@
       "max": 0.919,
       "mean": 0.1205
     },
+    "canopy_frac_over_3m": {
+      "min": 0.001,
+      "max": 0.842,
+      "mean": 0.1949
+    },
     "viirs_mean": {
       "min": 4.6,
       "max": 485.0,
@@ -64,6 +69,41 @@
       "min": 0.0,
       "max": 79934.0,
       "mean": 5606.1866
+    },
+    "frac_under5": {
+      "min": 0.0,
+      "max": 20.0,
+      "mean": 5.1764
+    },
+    "frac_elderly_65plus": {
+      "min": 1.1,
+      "max": 87.8,
+      "mean": 16.5774
+    },
+    "frac_elderly_75plus": {
+      "min": 0.3,
+      "max": 71.2,
+      "mean": 7.6536
+    },
+    "old_age_dependency_ratio": {
+      "min": 0.012,
+      "max": 7.721,
+      "mean": 0.2622
+    },
+    "lst_anomaly_c": {
+      "min": -14.92,
+      "max": 7.48,
+      "mean": 0.0
+    },
+    "ref_daytime_hi_mean": {
+      "min": 80.2,
+      "max": 87.7,
+      "mean": 84.412
+    },
+    "ref_daytime_hi_p95": {
+      "min": 92.3,
+      "max": 100.4,
+      "mean": 96.4442
     }
   },
   "city_daytime_hi_mean": 88.1,
