@@ -1,0 +1,75 @@
+{
+  "city_key": "miami",
+  "city_label": "Miami, FL",
+  "last_updated": "2026-07-15",
+  "data_date_range": [
+    "2026-06-29",
+    "2026-07-14"
+  ],
+  "rolling_window_days": 30,
+  "polygon_count": 706,
+  "total_population": 3095451.491261203,
+  "variable_stats": {
+    "daytime_peak_f": {
+      "min": 95.5,
+      "max": 102.1,
+      "mean": 101.2541
+    },
+    "heat_anomaly_f": {
+      "min": 2.5,
+      "max": 5.2,
+      "mean": 4.0197
+    },
+    "extreme_pct": {
+      "min": 0.0,
+      "max": 38.0,
+      "mean": 24.6034
+    },
+    "nighttime_stress_f": {
+      "min": -9.2,
+      "max": -0.1,
+      "mean": -4.4187
+    },
+    "rwi_mean": {
+      "min": null,
+      "max": null,
+      "mean": null
+    },
+    "health_per_10k": {
+      "min": 0.0,
+      "max": 42.7533,
+      "mean": 1.7019
+    },
+    "built_frac": {
+      "min": 0.0,
+      "max": 0.989,
+      "mean": 0.6293
+    },
+    "tree_frac": {
+      "min": 0.001,
+      "max": 0.821,
+      "mean": 0.1533
+    },
+    "viirs_mean": {
+      "min": 0.0,
+      "max": 261.4,
+      "mean": 73.8044
+    },
+    "gdl_hdi": {
+      "min": 0.936,
+      "max": 0.936,
+      "mean": 0.936
+    },
+    "population": {
+      "min": 0.0,
+      "max": 49859.0,
+      "mean": 4384.4922
+    }
+  },
+  "city_daytime_hi_mean": 101.3,
+  "map_center": [
+    25.77,
+    -80.3
+  ],
+  "map_zoom": 10
+}

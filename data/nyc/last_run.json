@@ -1,0 +1,75 @@
+{
+  "city_key": "nyc",
+  "city_label": "New York, NY",
+  "last_updated": "2026-07-15",
+  "data_date_range": [
+    "2026-06-01",
+    "2026-07-14"
+  ],
+  "rolling_window_days": 30,
+  "polygon_count": 2324,
+  "total_population": 13028777.711538566,
+  "variable_stats": {
+    "daytime_peak_f": {
+      "min": 85.8,
+      "max": 91.7,
+      "mean": 88.1396
+    },
+    "heat_anomaly_f": {
+      "min": 2.3,
+      "max": 6.1,
+      "mean": 3.7244
+    },
+    "extreme_pct": {
+      "min": 17.0,
+      "max": 31.0,
+      "mean": 22.0994
+    },
+    "nighttime_stress_f": {
+      "min": -5.0,
+      "max": -0.5,
+      "mean": -2.8427
+    },
+    "rwi_mean": {
+      "min": null,
+      "max": null,
+      "mean": null
+    },
+    "health_per_10k": {
+      "min": 0.0,
+      "max": 10000.0,
+      "mean": 9.564
+    },
+    "built_frac": {
+      "min": 0.0,
+      "max": 1.0,
+      "mean": 0.819
+    },
+    "tree_frac": {
+      "min": 0.0,
+      "max": 0.919,
+      "mean": 0.1205
+    },
+    "viirs_mean": {
+      "min": 4.6,
+      "max": 485.0,
+      "mean": 69.3996
+    },
+    "gdl_hdi": {
+      "min": 0.942,
+      "max": 0.948,
+      "mean": 0.942
+    },
+    "population": {
+      "min": 0.0,
+      "max": 79934.0,
+      "mean": 5606.1866
+    }
+  },
+  "city_daytime_hi_mean": 88.1,
+  "map_center": [
+    40.72,
+    -73.95
+  ],
+  "map_zoom": 10
+}
