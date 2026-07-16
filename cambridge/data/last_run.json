@@ -1,0 +1,74 @@
+{
+  "last_updated": "2026-07-16",
+  "data_date_range": [
+    "2026-06-29",
+    "2026-07-15"
+  ],
+  "tract_count": 591,
+  "total_population": 2777784.830937804,
+  "daily_stats": {
+    "daytime_peak_f": {
+      "min": 65.9,
+      "max": 104.9,
+      "mean": 86.75
+    },
+    "heat_anomaly_f": {
+      "min": -17.1,
+      "max": 22.9,
+      "mean": 3.13
+    },
+    "nighttime_stress_f": {
+      "min": -18.4,
+      "max": 17.0,
+      "mean": -4.39
+    }
+  },
+  "static_stats": {
+    "built_frac": {
+      "min": 0.001,
+      "max": 0.987,
+      "mean": 0.4867
+    },
+    "tree_frac": {
+      "min": 0.005,
+      "max": 0.958,
+      "mean": 0.4152
+    },
+    "viirs_mean": {
+      "min": 0.7,
+      "max": 186.9,
+      "mean": 40.9151
+    },
+    "gdl_hdi": {
+      "min": 0.961,
+      "max": 0.961,
+      "mean": 0.961
+    },
+    "frac_under5": {
+      "min": 0.2,
+      "max": 15.7,
+      "mean": 4.9221
+    },
+    "frac_elderly_65plus": {
+      "min": 0.3,
+      "max": 37.2,
+      "mean": 15.9758
+    },
+    "lst_anomaly_c": {
+      "min": -10.08,
+      "max": 7.25,
+      "mean": -0.0001
+    },
+    "population": {
+      "min": 0.0,
+      "max": 39410.0,
+      "mean": 4700.1435
+    }
+  },
+  "extreme_tract_days": 1983,
+  "map_center": [
+    42.42,
+    -71.25
+  ],
+  "map_zoom": 10
+}
