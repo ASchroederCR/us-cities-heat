@@ -456,7 +456,7 @@ function initMap() {
       layer.on({
         mouseover() { layer.setStyle({ fillOpacity: HOVER_FILL_OPACITY, weight: 2, color: "#0f172a" }); },
         mouseout()  { applyStyleTo(layer); },
-        popupopen()  { openPopupLayer = feature.properties.name; renderPopupChart(feature.properties.name); },
+        popupopen()  { openPopupLayer = feature.properties.name; renderPopupChartFor(layer); },
         popupclose() { if (openPopupLayer === feature.properties.name) openPopupLayer = null; },
       });
     },
@@ -493,7 +493,7 @@ function refreshOpenPopup() {
   geojsonLayer.eachLayer(l => { if (l.feature.properties.name === openPopupLayer) target = l; });
   if (!target) return;
   target.setPopupContent(popupHtml(target.feature.properties));
-  renderPopupChart(openPopupLayer);
+  renderPopupChartFor(target);
 }
 
 // ── popup ──────────────────────────────────────────────────────────────────
@@ -501,19 +501,35 @@ function popupHtml(props) {
   if (!props.has_data) return `<div class="popup-name">${props.name}</div><div class="popup-sub">No data</div>`;
   const varDef = VAR_BY_KEY[currentVar];
   const val = valueFor(props, varDef);
+  const u5  = props.frac_under5 != null ? props.frac_under5.toFixed(1) + "%" : "–";
+  const o65 = props.frac_elderly_65plus != null ? props.frac_elderly_65plus.toFixed(1) + "%" : "–";
+  const tree = props.tree_frac != null ? (props.tree_frac * 100).toFixed(1) + "%" : "–";
   return `
     <div class="popup-name">${props.name}</div>
     <div class="popup-sub">${DATES[dayIndex] || ""}</div>
     <div class="popup-row"><span>${varDef.label}</span><span>${fmtValue(val, varDef)}</span></div>
     <div class="popup-row"><span>Population</span><span>${props.population ? Math.round(props.population).toLocaleString() : "–"}</span></div>
-    <div class="popup-chart-wrap"><canvas id="popup-chart"></canvas></div>
+    <div class="popup-row"><span>Under 5</span><span>${u5}</span></div>
+    <div class="popup-row"><span>65+</span><span>${o65}</span></div>
+    <div class="popup-row"><span>Tree canopy</span><span>${tree}</span></div>
+    <div class="popup-chart-wrap"><canvas class="popup-chart"></canvas></div>
   `;
 }
 
-function renderPopupChart(name) {
+// Scoped to this layer's own popup DOM (via popup.getElement()) rather than
+// a global id lookup. When switching directly from one open popup to
+// another, Leaflet briefly has both popups' DOM in the document at once —
+// a global document.getElementById("popup-chart") would nondeterministically
+// grab whichever popup's canvas happens to come first, drawing the new
+// chart into the OLD (closing) popup while the newly-opened one stayed
+// blank. This was the "time series disappearing" bug.
+function renderPopupChartFor(layer) {
+  const name = layer.feature.properties.name;
   const series = DAILY[name];
   if (!series) return;
-  const canvas = document.getElementById("popup-chart");
+  const popup = layer.getPopup();
+  const el = popup && popup.getElement();
+  const canvas = el && el.querySelector("canvas.popup-chart");
   if (!canvas) return;
 
   const labels = series.map(d => d.date.slice(5));
@@ -617,7 +633,7 @@ function stepDay(delta) {
   document.getElementById("time-slider").value = dayIndex;
   updateTimeLabel();
   renderLayer();
-  if (openPopupLayer) renderPopupChart(openPopupLayer);
+  refreshOpenPopup();
 }
 
 function togglePlay() {
