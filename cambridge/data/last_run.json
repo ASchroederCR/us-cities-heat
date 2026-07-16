@@ -2,7 +2,15 @@
   "last_updated": "2026-07-16",
   "data_date_range": [
     "2026-06-29",
-    "2026-07-15"
+    "2026-07-21"
+  ],
+  "forecast_dates": [
+    "2026-07-16",
+    "2026-07-17",
+    "2026-07-18",
+    "2026-07-19",
+    "2026-07-20",
+    "2026-07-21"
   ],
   "tract_count": 591,
   "total_population": 2777784.830937804,
@@ -10,17 +18,22 @@
     "daytime_peak_f": {
       "min": 65.9,
       "max": 104.9,
-      "mean": 86.75
+      "mean": 85.65
     },
     "heat_anomaly_f": {
       "min": -17.1,
       "max": 22.9,
-      "mean": 3.13
+      "mean": 1.69
     },
     "nighttime_stress_f": {
-      "min": -18.4,
+      "min": -21.0,
       "max": 17.0,
-      "mean": -4.39
+      "mean": -6.51
+    },
+    "us_aqi": {
+      "min": 42.0,
+      "max": 142.0,
+      "mean": 82.41
     }
   },
   "static_stats": {
@@ -66,6 +79,7 @@
     }
   },
   "extreme_tract_days": 1983,
+  "aqi_tract_days": 9132,
   "map_center": [
     42.365,
     -71.09
