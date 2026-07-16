@@ -138,8 +138,8 @@ summary = {
     "daily_stats":         daily_stats,
     "static_stats":        static_stats,
     "extreme_tract_days":  extreme_day_count,
-    "map_center":          [42.42, -71.25],
-    "map_zoom":            10,
+    "map_center":          [42.365, -71.09],
+    "map_zoom":            12,
 }
 
 with open(os.path.join(DATA, "last_run.json"), "w") as f:

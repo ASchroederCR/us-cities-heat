@@ -251,7 +251,10 @@ async function boot() {
 
   requestAnimationFrame(() => requestAnimationFrame(() => {
     map.invalidateSize();
-    if (geojsonLayer) map.fitBounds(geojsonLayer.getBounds(), { padding: [16, 16] });
+    // Deliberately NOT calling fitBounds() to the full 591-tract extent —
+    // that would zoom out past the Boston/Cambridge core every time. The
+    // map opens at META.map_center/map_zoom (set in build_data.py) instead;
+    // the wider metro area is still fully reachable by panning/zooming out.
   }));
   window.addEventListener("resize", () => map.invalidateSize());
 }
