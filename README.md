@@ -18,6 +18,17 @@ may show some cities as "pending" while others are live.
 This is a companion project to a separate Delhi/Kano heat-vulnerability
 dashboard.
 
+## `cambridge-heat-map/`
+
+A standalone, light-themed, embeddable Leaflet map covering the full
+Boston/Cambridge metro area (Suffolk + Middlesex counties, 591 census
+tracts) — built for daily-resolution exploration with a time slider, rather
+than the rolling-window tabbed view in `us-heat-metrics/`. It reuses the
+same underlying `boston-cambridge-2026` API project data (no separate API
+project). See `cambridge-heat-map/build_data.py` for the day-level
+processing and `cambridge-heat-map/index.html` for the map itself. Deployed
+at `/cambridge/` on the Pages site.
+
 ## Running `daily_update.py` locally
 
 1. Copy `us-heat-metrics/credentials.example.json` to

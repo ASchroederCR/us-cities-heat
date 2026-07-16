@@ -4,5 +4,6 @@ us-heat-metrics/credentials.json
 us-heat-metrics/deploy_state.json
 us-heat-metrics/DEPLOY_STATUS.md
 us-heat-metrics/DEPLOY_BLOCKED.md
+cambridge-heat-map/data/
 __pycache__/
 *.pyc
