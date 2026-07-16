@@ -34,7 +34,7 @@
       flex-wrap: wrap;
       box-shadow: 0 1px 2px rgba(0,0,0,.04);
     }
-    #logo { height: 30px; width: auto; flex-shrink: 0; }
+    #logo { height: 52px; width: auto; flex-shrink: 0; }
     #header h1 { font-size: 1rem; font-weight: 700; color: #0f172a; letter-spacing: .01em; }
     #header .subtitle { font-size: .75rem; color: #64748b; }
     .stat-pill {
@@ -296,6 +296,7 @@ function selectVariable(key) {
   updateVariableDesc();
   renderLayer();
   renderLegend();
+  refreshOpenPopup();
 }
 
 function updateVariableDesc() {
@@ -440,36 +441,56 @@ function initMap() {
     subdomains: "abcd", maxZoom: 19,
   }).addTo(map);
   L.control.zoom({ position: "topright" }).addTo(map);
+
+  // Built once and never torn down — recreating the layer on every slider
+  // tick/variable switch used to close any open popup (its Leaflet layer
+  // object was destroyed), which is why popups intermittently showed no
+  // chart. renderLayer() now just restyles the existing layers in place.
+  geojsonLayer = L.geoJSON(GEO, {
+    style() { return {}; }, // real styling applied by renderLayer() right after
+    onEachFeature(feature, layer) {
+      layer.bindPopup(() => popupHtml(feature.properties), { maxWidth: 260 });
+      layer.on({
+        mouseover() { layer.setStyle({ fillOpacity: HOVER_FILL_OPACITY, weight: 2, color: "#0f172a" }); },
+        mouseout()  { applyStyleTo(layer); },
+        popupopen()  { openPopupLayer = feature.properties.name; renderPopupChart(feature.properties.name); },
+        popupclose() { if (openPopupLayer === feature.properties.name) openPopupLayer = null; },
+      });
+    },
+  }).addTo(map);
+
   renderLayer();
 }
 
 const BASE_FILL_OPACITY  = 0.42; // more transparent — basemap streets/labels stay visible through the layer
 const HOVER_FILL_OPACITY = 0.68;
 
-function renderLayer() {
-  if (geojsonLayer) map.removeLayer(geojsonLayer);
+function applyStyleTo(layer) {
   const varDef = VAR_BY_KEY[currentVar];
+  layer.setStyle({
+    fillColor: colorForFeature(layer.feature.properties, varDef),
+    fillOpacity: BASE_FILL_OPACITY,
+    color: "#64748b",
+    weight: 0.6,
+    opacity: 1,
+  });
+}
 
-  geojsonLayer = L.geoJSON(GEO, {
-    style(feature) {
-      return {
-        fillColor: colorForFeature(feature.properties, varDef),
-        fillOpacity: BASE_FILL_OPACITY,
-        color: "#64748b",
-        weight: 0.6,
-        opacity: 1,
-      };
-    },
-    onEachFeature(feature, layer) {
-      layer.bindPopup(() => popupHtml(feature.properties), { maxWidth: 260 });
-      layer.on({
-        mouseover() { layer.setStyle({ fillOpacity: HOVER_FILL_OPACITY, weight: 2, color: "#0f172a" }); },
-        mouseout()  { geojsonLayer.resetStyle(layer); },
-        popupopen()  { openPopupLayer = feature.properties.name; renderPopupChart(feature.properties.name); },
-        popupclose() { if (openPopupLayer === feature.properties.name) openPopupLayer = null; },
-      });
-    },
-  }).addTo(map);
+function renderLayer() {
+  if (!geojsonLayer) return;
+  geojsonLayer.eachLayer(applyStyleTo);
+}
+
+// Keeps an already-open popup's text (date/value) and chart in sync when the
+// day or variable changes — bindPopup's content function only runs when a
+// popup first opens, so without this the popup would show stale text.
+function refreshOpenPopup() {
+  if (!openPopupLayer) return;
+  let target = null;
+  geojsonLayer.eachLayer(l => { if (l.feature.properties.name === openPopupLayer) target = l; });
+  if (!target) return;
+  target.setPopupContent(popupHtml(target.feature.properties));
+  renderPopupChart(openPopupLayer);
 }
 
 // ── popup ──────────────────────────────────────────────────────────────────
@@ -576,7 +597,7 @@ function wireTimeControls() {
     dayIndex = parseInt(e.target.value, 10);
     updateTimeLabel();
     renderLayer();
-    if (openPopupLayer) renderPopupChart(openPopupLayer);
+    refreshOpenPopup();
   });
 }
 
@@ -610,7 +631,7 @@ function togglePlay() {
     document.getElementById("time-slider").value = dayIndex;
     updateTimeLabel();
     renderLayer();
-    if (openPopupLayer) renderPopupChart(openPopupLayer);
+    refreshOpenPopup();
   }, 900);
 }
 
