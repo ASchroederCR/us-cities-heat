@@ -10,11 +10,18 @@ geographically compact to span more than ~2 ERA5 grid cells — the heat
 layers barely varied. The full metro area spans ~28 distinct daily values,
 which is why this now uses the whole AOI file with no GEOID filtering.
 
+The time slider also extends a few days past "today" using Open-Meteo
+forecast rows, and gets a same-scale Air Quality (US AQI) layer — both
+pulled separately by fetch_forecast_aqi.py (run that first; this script
+just merges whatever it finds, and works fine without it too).
+
 Reads:  ../boston_heat_metrics.json      (shared cache w/ us-heat-metrics/boston)
         ../boston_vulnerability.json
+        ../boston_forecast.json          (optional — from fetch_forecast_aqi.py)
+        ../boston_air_quality.json       (optional — from fetch_forecast_aqi.py)
         ../Cities_USA/aoi/boston_tract_aoi.geojson
 Writes: data/static.geojson   (591 features, static vulnerability/demographic properties)
-        data/daily.json       (per-tract array of day-level heat values)
+        data/daily.json       (per-tract array of day-level heat + AQI values)
         data/last_run.json    (metadata + classification stats)
 """
 
@@ -28,9 +35,11 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(BASE, "data")
 os.makedirs(DATA, exist_ok=True)
 
-HEAT_FILE = os.path.join(BASE, "..", "boston_heat_metrics.json")
-VULN_FILE = os.path.join(BASE, "..", "boston_vulnerability.json")
-GEO_FILE  = os.path.join(BASE, "..", "Cities_USA", "aoi", "boston_tract_aoi.geojson")
+HEAT_FILE     = os.path.join(BASE, "..", "boston_heat_metrics.json")
+VULN_FILE     = os.path.join(BASE, "..", "boston_vulnerability.json")
+FORECAST_FILE = os.path.join(BASE, "..", "boston_forecast.json")
+AQI_FILE      = os.path.join(BASE, "..", "boston_air_quality.json")
+GEO_FILE      = os.path.join(BASE, "..", "Cities_USA", "aoi", "boston_tract_aoi.geojson")
 
 STATIC_KEYS = [
     "built_frac", "tree_frac", "viirs_mean", "gdl_hdi",
@@ -42,6 +51,13 @@ def safe_round(v, n):
     return round(v, n) if v is not None else None
 
 
+def load_json_if_exists(path):
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    return None
+
+
 print("Loading source data...")
 with open(HEAT_FILE) as f:
     raw_metrics = json.load(f)
@@ -49,6 +65,10 @@ with open(VULN_FILE) as f:
     raw_vuln = json.load(f)
 with open(GEO_FILE) as f:
     geojson = json.load(f)
+
+forecast_rows = load_json_if_exists(FORECAST_FILE) or []
+aqi_rows      = load_json_if_exists(AQI_FILE) or []
+print(f"  {len(forecast_rows)} forecast rows, {len(aqi_rows)} air-quality rows available")
 
 # ── 1. use the full metro area — no filtering ───────────────────────────────
 cam_features = geojson["features"]
@@ -58,28 +78,49 @@ print(f"  {len(cam_features)} metro-area tracts")
 vuln_by_name = {v["name"]: v for v in raw_vuln if v["name"] in cam_names}
 
 # ── 2. day-level heat values (not rolling-window aggregates) ───────────────
-poly_rows = defaultdict(list)
+# Forecast rows extend the same per-tract series past "today" — they carry
+# the identical schema (including WMO reference joins), just data_source
+# ='forecast' instead of 'era5'/'open_meteo'. Real rows always win if a date
+# somehow appears in both (shouldn't happen — forecast dates are always in
+# the future — but be defensive rather than silently duplicate a day).
+poly_rows = defaultdict(dict)  # name -> {date: row}
 for row in raw_metrics:
     if row["name"] in cam_names:
-        poly_rows[row["name"]].append(row)
+        poly_rows[row["name"]][row["date"]] = row
+for row in forecast_rows:
+    if row["name"] in cam_names and row["date"] not in poly_rows[row["name"]]:
+        poly_rows[row["name"]][row["date"]] = row
+
+# AQI lookup: (name, date) -> row. qc_status='invalid' rows are already
+# excluded server-side by default (we didn't pass include_flagged), so
+# everything here is either 'valid' or a visibly-flagged 'suspect' row.
+aqi_by_key = {(r["name"], r["date"]): r for r in aqi_rows if r["name"] in cam_names}
 
 daily = {}
-for name, rows in poly_rows.items():
+for name, rows_by_date in poly_rows.items():
     series = []
-    for r in sorted(rows, key=lambda x: x["date"]):
+    for r_date in sorted(rows_by_date):
+        r = rows_by_date[r_date]
         dt_max   = r.get("daytime_hi_max")
         ref_mean = r.get("ref_daytime_hi_mean")
         ref_p95  = r.get("ref_daytime_hi_p95")
         nt_mean  = r.get("nighttime_hi_mean")
         ref_nt   = r.get("ref_nighttime_hi_median")
+
+        aqi = aqi_by_key.get((name, r_date))
+
         series.append({
-            "date":            r["date"],
+            "date":            r_date,
+            "data_source":     r.get("data_source", "era5"),
             "daytime_peak_f":  safe_round(dt_max, 1),
             "heat_anomaly_f":  safe_round(dt_max - ref_mean, 1) if dt_max is not None and ref_mean is not None else None,
             "is_extreme":      bool(dt_max is not None and ref_p95 is not None and dt_max > ref_p95),
             "nighttime_stress_f": safe_round(nt_mean - ref_nt, 1) if nt_mean is not None and ref_nt is not None else None,
             "ref_daytime_hi_p95":  safe_round(ref_p95, 1),
             "ref_daytime_hi_mean": safe_round(ref_mean, 1),
+            "us_aqi":          safe_round(aqi["us_aqi_max"], 0) if aqi and aqi.get("us_aqi_max") is not None else None,
+            "aqi_source":      aqi.get("data_source") if aqi else None,
+            "aqi_flagged":     bool(aqi and aqi.get("qc_status") == "suspect"),
         })
     daily[name] = series
 
@@ -91,7 +132,7 @@ print(f"  daily.json — {len(daily)} tracts")
 for feature in cam_features:
     name = feature["properties"]["name"]
     v = vuln_by_name.get(name, {})
-    pops = [r["population"] for r in poly_rows.get(name, []) if r.get("population") is not None]
+    pops = [r["population"] for r in poly_rows.get(name, {}).values() if r.get("population") is not None]
 
     feature["properties"].update({
         "population":              pops[0] if pops else None,
@@ -114,8 +155,9 @@ print(f"  static.geojson — {len(cam_features)} features")
 # Daily variables: computed across ALL tract-days combined, so the color
 # scale is stable while scrubbing the time slider (same color = same value
 # range on every day, not recomputed per-day).
-daily_keys = ["daytime_peak_f", "heat_anomaly_f", "nighttime_stress_f"]
+daily_keys = ["daytime_peak_f", "heat_anomaly_f", "nighttime_stress_f", "us_aqi"]
 all_dates = sorted({d["date"] for series in daily.values() for d in series})
+forecast_dates = sorted({d["date"] for series in daily.values() for d in series if d["data_source"] == "forecast"})
 
 daily_stats = {}
 for key in daily_keys:
@@ -129,20 +171,24 @@ for key in STATIC_KEYS:
 
 total_pop = sum(f["properties"]["population"] or 0 for f in cam_features)
 extreme_day_count = sum(1 for series in daily.values() for d in series if d["is_extreme"])
+aqi_day_count = sum(1 for series in daily.values() for d in series if d["us_aqi"] is not None)
 
 summary = {
     "last_updated":        str(date.today()),
     "data_date_range":     [all_dates[0], all_dates[-1]],
+    "forecast_dates":      forecast_dates,
     "tract_count":         len(cam_features),
     "total_population":    total_pop,
     "daily_stats":         daily_stats,
     "static_stats":        static_stats,
     "extreme_tract_days":  extreme_day_count,
+    "aqi_tract_days":      aqi_day_count,
     "map_center":          [42.365, -71.09],
     "map_zoom":            12,
 }
 
 with open(os.path.join(DATA, "last_run.json"), "w") as f:
     json.dump(summary, f, indent=2)
-print(f"  last_run.json — range {all_dates[0]}..{all_dates[-1]}, {len(all_dates)} days")
+print(f"  last_run.json — range {all_dates[0]}..{all_dates[-1]} ({len(forecast_dates)} forecast days), "
+      f"{len(all_dates)} days total, {aqi_day_count} tract-days with AQI")
 print("Done.")
