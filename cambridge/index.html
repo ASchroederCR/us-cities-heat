@@ -244,7 +244,7 @@ async function boot() {
   ]);
   GEO = staticGeo; DAILY = daily; META = meta;
   DATES = META.data_date_range ? datesInRange() : [];
-  dayIndex = DATES.length - 1; // default to most recent day
+  dayIndex = defaultDayIndex(); // today if we have it, else the closest earlier day
 
   populateHeader();
   buildToggles();
@@ -268,6 +268,33 @@ async function boot() {
 function datesInRange() {
   const first = Object.values(DAILY)[0];
   return first.map(d => d.date);
+}
+
+// "Today" in the map's own local timezone (America/New_York), not the
+// viewer's — the underlying data is already in local-day terms, and a
+// visitor viewing this from another timezone shouldn't land on the wrong day.
+function todayInTZ(tz) {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const map = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  return `${map.year}-${map.month}-${map.day}`;
+}
+
+// Default the slider to today, not the latest available day — forecast
+// rows now extend DATES several days past today, and opening on the last
+// forecast day instead of the present was confusing.
+function defaultDayIndex() {
+  if (!DATES.length) return 0;
+  const today = todayInTZ("America/New_York");
+  const exact = DATES.indexOf(today);
+  if (exact !== -1) return exact;
+  // Today isn't in range yet (data pull hasn't caught up) — use the most
+  // recent date that's still <= today rather than defaulting into the
+  // forecast tail.
+  let fallback = 0;
+  for (let i = 0; i < DATES.length; i++) {
+    if (DATES[i] <= today) fallback = i; else break;
+  }
+  return fallback;
 }
 
 async function fetchJson(url) {
