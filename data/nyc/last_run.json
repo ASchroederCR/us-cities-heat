@@ -1,34 +1,34 @@
 {
   "city_key": "nyc",
   "city_label": "New York, NY",
-  "last_updated": "2026-07-15",
+  "last_updated": "2026-07-17",
   "data_date_range": [
     "2026-06-01",
-    "2026-07-14"
+    "2026-07-16"
   ],
   "rolling_window_days": 30,
   "polygon_count": 2324,
   "total_population": 13028777.711538566,
   "variable_stats": {
     "daytime_peak_f": {
-      "min": 85.8,
-      "max": 91.7,
-      "mean": 88.1396
+      "min": 86.6,
+      "max": 92.8,
+      "mean": 89.3452
     },
     "heat_anomaly_f": {
-      "min": 2.3,
-      "max": 6.1,
-      "mean": 3.7244
+      "min": 2.4,
+      "max": 6.9,
+      "mean": 4.6439
     },
     "extreme_pct": {
-      "min": 17.0,
-      "max": 31.0,
-      "mean": 22.0994
+      "min": 20.0,
+      "max": 33.0,
+      "mean": 24.8907
     },
     "nighttime_stress_f": {
-      "min": -5.0,
+      "min": -5.3,
       "max": -0.5,
-      "mean": -2.8427
+      "mean": -2.975
     },
     "rwi_mean": {
       "min": null,
@@ -96,17 +96,17 @@
       "mean": 0.0
     },
     "ref_daytime_hi_mean": {
-      "min": 80.2,
-      "max": 87.7,
-      "mean": 84.412
+      "min": 80.7,
+      "max": 87.8,
+      "mean": 84.7123
     },
     "ref_daytime_hi_p95": {
-      "min": 92.3,
-      "max": 100.4,
-      "mean": 96.4442
+      "min": 92.7,
+      "max": 100.6,
+      "mean": 96.6948
     }
   },
-  "city_daytime_hi_mean": 88.1,
+  "city_daytime_hi_mean": 89.3,
   "map_center": [
     40.72,
     -73.95

@@ -1,34 +1,34 @@
 {
   "city_key": "miami",
   "city_label": "Miami, FL",
-  "last_updated": "2026-07-15",
+  "last_updated": "2026-07-17",
   "data_date_range": [
     "2026-06-29",
-    "2026-07-14"
+    "2026-07-16"
   ],
   "rolling_window_days": 30,
   "polygon_count": 706,
   "total_population": 3095451.491261203,
   "variable_stats": {
     "daytime_peak_f": {
-      "min": 95.5,
-      "max": 102.1,
-      "mean": 101.2541
+      "min": 95.8,
+      "max": 103.3,
+      "mean": 102.0588
     },
     "heat_anomaly_f": {
-      "min": 2.5,
-      "max": 5.2,
-      "mean": 4.0197
+      "min": 2.8,
+      "max": 6.1,
+      "mean": 4.763
     },
     "extreme_pct": {
-      "min": 0.0,
-      "max": 38.0,
-      "mean": 24.6034
+      "min": 6.0,
+      "max": 44.0,
+      "mean": 32.3824
     },
     "nighttime_stress_f": {
-      "min": -9.2,
-      "max": -0.1,
-      "mean": -4.4187
+      "min": -9.1,
+      "max": 0.0,
+      "mean": -4.3004
     },
     "rwi_mean": {
       "min": null,
@@ -98,15 +98,15 @@
     "ref_daytime_hi_mean": {
       "min": 93.0,
       "max": 99.3,
-      "mean": 97.2537
+      "mean": 97.2932
     },
     "ref_daytime_hi_p95": {
       "min": 97.8,
-      "max": 104.2,
-      "mean": 102.5089
+      "max": 104.3,
+      "mean": 102.5809
     }
   },
-  "city_daytime_hi_mean": 101.3,
+  "city_daytime_hi_mean": 102.1,
   "map_center": [
     25.77,
     -80.3

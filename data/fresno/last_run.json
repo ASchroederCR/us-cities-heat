@@ -1,24 +1,24 @@
 {
   "city_key": "fresno",
   "city_label": "Fresno, CA",
-  "last_updated": "2026-07-15",
+  "last_updated": "2026-07-17",
   "data_date_range": [
     "2026-06-01",
-    "2026-07-14"
+    "2026-07-16"
   ],
   "rolling_window_days": 30,
   "polygon_count": 225,
   "total_population": 1057959.3892634497,
   "variable_stats": {
     "daytime_peak_f": {
-      "min": 63.0,
-      "max": 94.0,
-      "mean": 92.0716
+      "min": 63.2,
+      "max": 94.5,
+      "mean": 92.6227
     },
     "heat_anomaly_f": {
-      "min": -8.7,
-      "max": 1.7,
-      "mean": -2.1173
+      "min": -7.9,
+      "max": 1.4,
+      "mean": -1.928
     },
     "extreme_pct": {
       "min": 0.0,
@@ -26,9 +26,9 @@
       "mean": 0.0356
     },
     "nighttime_stress_f": {
-      "min": -21.0,
-      "max": -8.9,
-      "mean": -12.8431
+      "min": -19.9,
+      "max": -9.1,
+      "mean": -12.9947
     },
     "rwi_mean": {
       "min": null,
@@ -96,17 +96,17 @@
       "mean": -0.0001
     },
     "ref_daytime_hi_mean": {
-      "min": 61.3,
-      "max": 96.3,
-      "mean": 94.1942
+      "min": 61.8,
+      "max": 96.6,
+      "mean": 94.5227
     },
     "ref_daytime_hi_p95": {
-      "min": 70.4,
-      "max": 106.5,
-      "mean": 104.644
+      "min": 70.7,
+      "max": 106.7,
+      "mean": 104.8658
     }
   },
-  "city_daytime_hi_mean": 92.1,
+  "city_daytime_hi_mean": 92.6,
   "map_center": [
     36.75,
     -119.77

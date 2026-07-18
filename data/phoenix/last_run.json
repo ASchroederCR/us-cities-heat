@@ -1,34 +1,34 @@
 {
   "city_key": "phoenix",
   "city_label": "Phoenix, AZ",
-  "last_updated": "2026-07-15",
+  "last_updated": "2026-07-17",
   "data_date_range": [
     "2026-06-29",
-    "2026-07-14"
+    "2026-07-16"
   ],
   "rolling_window_days": 30,
   "polygon_count": 1009,
   "total_population": 4746072.223880087,
   "variable_stats": {
     "daytime_peak_f": {
-      "min": 93.2,
-      "max": 103.5,
-      "mean": 101.7954
+      "min": 93.4,
+      "max": 103.9,
+      "mean": 102.389
     },
     "heat_anomaly_f": {
-      "min": -2.4,
-      "max": -0.4,
-      "mean": -1.5263
+      "min": -2.2,
+      "max": -0.2,
+      "mean": -1.0916
     },
     "extreme_pct": {
       "min": 0.0,
-      "max": 19.0,
-      "mean": 0.0842
+      "max": 17.0,
+      "mean": 1.444
     },
     "nighttime_stress_f": {
-      "min": -12.7,
-      "max": -9.2,
-      "mean": -10.9894
+      "min": -12.9,
+      "max": -9.6,
+      "mean": -11.2771
     },
     "rwi_mean": {
       "min": null,
@@ -96,17 +96,17 @@
       "mean": 0.0
     },
     "ref_daytime_hi_mean": {
-      "min": 93.8,
-      "max": 105.1,
-      "mean": 103.3186
+      "min": 93.9,
+      "max": 105.3,
+      "mean": 103.4816
     },
     "ref_daytime_hi_p95": {
-      "min": 99.7,
-      "max": 111.3,
-      "mean": 109.4385
+      "min": 99.9,
+      "max": 111.4,
+      "mean": 109.5828
     }
   },
-  "city_daytime_hi_mean": 101.8,
+  "city_daytime_hi_mean": 102.4,
   "map_center": [
     33.45,
     -112.2
